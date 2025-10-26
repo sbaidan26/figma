@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
-import { Plus, Search, Edit, Trash2, Users, BookOpen, MoreHorizontal } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, BookOpen, MoreHorizontal, UserPlus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../utils/supabase/client';
 
@@ -51,12 +51,30 @@ interface Teacher {
   name: string;
 }
 
+interface Student {
+  id: string;
+  name: string;
+  class_id: string | null;
+  class?: string | null;
+}
+
+interface Parent {
+  id: string;
+  name: string;
+  children: string[];
+}
+
 export function ClassManagementView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [classes, setClasses] = useState<Class[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isAssignStudentsDialogOpen, setIsAssignStudentsDialogOpen] = useState(false);
+  const [selectedClassForAssignment, setSelectedClassForAssignment] = useState<Class | null>(null);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
 
@@ -71,6 +89,7 @@ export function ClassManagementView() {
   useEffect(() => {
     fetchClasses();
     fetchTeachers();
+    fetchStudents();
   }, []);
 
   const fetchClasses = async () => {
@@ -104,6 +123,22 @@ export function ClassManagementView() {
       setTeachers(data || []);
     } catch (error: any) {
       console.error('Error fetching teachers:', error);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, class_id, class')
+        .eq('role', 'student')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error: any) {
+      console.error('Error fetching students:', error);
     }
   };
 
@@ -144,7 +179,8 @@ export function ClassManagementView() {
       toast.success('Classe créée avec succès');
       setIsCreateDialogOpen(false);
       resetForm();
-      fetchClasses();
+      await fetchClasses();
+      await updateClassStudentCounts();
     } catch (error: any) {
       toast.error('Erreur lors de la création de la classe');
       console.error('Error creating class:', error);
@@ -175,7 +211,8 @@ export function ClassManagementView() {
       toast.success('Classe modifiée avec succès');
       setIsEditDialogOpen(false);
       resetForm();
-      fetchClasses();
+      await fetchClasses();
+      await updateClassStudentCounts();
     } catch (error: any) {
       toast.error('Erreur lors de la modification de la classe');
       console.error('Error updating class:', error);
@@ -194,7 +231,8 @@ export function ClassManagementView() {
       if (error) throw error;
 
       toast.success(`${className} a été supprimée`);
-      fetchClasses();
+      await fetchClasses();
+      await updateClassStudentCounts();
     } catch (error: any) {
       toast.error('Erreur lors de la suppression de la classe');
       console.error('Error deleting class:', error);
@@ -211,6 +249,102 @@ export function ClassManagementView() {
       subjects: cls.subjects?.join(', ') || ''
     });
     setIsEditDialogOpen(true);
+  };
+
+  const openAssignStudentsDialog = (cls: Class) => {
+    setSelectedClassForAssignment(cls);
+    const studentsInClass = students.filter(s => s.class_id === cls.id).map(s => s.id);
+    setSelectedStudents(studentsInClass);
+    setIsAssignStudentsDialogOpen(true);
+  };
+
+  const handleStudentSelection = (studentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedStudents([...selectedStudents, studentId]);
+    } else {
+      setSelectedStudents(selectedStudents.filter(id => id !== studentId));
+    }
+  };
+
+  const updateClassStudentCounts = async () => {
+    try {
+      const { data: classesData, error: classesError } = await supabase
+        .from('classes')
+        .select('id');
+
+      if (classesError) throw classesError;
+
+      for (const cls of classesData || []) {
+        const { count, error: countError } = await supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .eq('class_id', cls.id)
+          .eq('role', 'student');
+
+        if (countError) {
+          console.error('Error counting students:', countError);
+          continue;
+        }
+
+        await supabase
+          .from('classes')
+          .update({ student_count: count || 0 })
+          .eq('id', cls.id);
+      }
+    } catch (error) {
+      console.error('Error updating class student counts:', error);
+    }
+  };
+
+  const handleAssignStudents = async () => {
+    if (!selectedClassForAssignment) return;
+
+    setAssignmentLoading(true);
+
+    try {
+      const currentClassStudents = students.filter(s => s.class_id === selectedClassForAssignment.id);
+      const studentsToRemove = currentClassStudents
+        .filter(s => !selectedStudents.includes(s.id))
+        .map(s => s.id);
+      const studentsToAdd = selectedStudents.filter(
+        id => !currentClassStudents.some(s => s.id === id)
+      );
+
+      if (studentsToRemove.length > 0) {
+        const { error: removeError } = await supabase
+          .from('users')
+          .update({ class_id: null, class: null })
+          .in('id', studentsToRemove);
+
+        if (removeError) throw removeError;
+      }
+
+      if (studentsToAdd.length > 0) {
+        const { error: addError } = await supabase
+          .from('users')
+          .update({
+            class_id: selectedClassForAssignment.id,
+            class: selectedClassForAssignment.name
+          })
+          .in('id', studentsToAdd);
+
+        if (addError) throw addError;
+      }
+
+      await updateClassStudentCounts();
+      await fetchClasses();
+      await fetchStudents();
+
+      toast.success('Élèves assignés avec succès');
+      setIsAssignStudentsDialogOpen(false);
+      setSelectedClassForAssignment(null);
+      setSelectedStudents([]);
+    } catch (error: any) {
+      toast.error('Erreur lors de l\'assignation des élèves');
+      console.error('Error assigning students:', error);
+    } finally {
+      setAssignmentLoading(false);
+    }
   };
 
   return (
@@ -394,6 +528,78 @@ export function ClassManagementView() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Assign Students Dialog */}
+        <Dialog open={isAssignStudentsDialogOpen} onOpenChange={(open) => {
+          setIsAssignStudentsDialogOpen(open);
+          if (!open) {
+            setSelectedClassForAssignment(null);
+            setSelectedStudents([]);
+          }
+        }}>
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Assigner des élèves à {selectedClassForAssignment?.name}</DialogTitle>
+              <DialogDescription>
+                Sélectionnez les élèves à assigner à cette classe
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4 overflow-y-auto max-h-[50vh]">
+              {students.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Aucun élève disponible</p>
+              ) : (
+                <div className="space-y-2">
+                  {students.map((student) => (
+                    <div
+                      key={student.id}
+                      className="flex items-center space-x-2 p-3 rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`student-${student.id}`}
+                        checked={selectedStudents.includes(student.id)}
+                        onChange={(e) => handleStudentSelection(student.id, e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      <label
+                        htmlFor={`student-${student.id}`}
+                        className="flex-1 flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="font-medium">{student.name}</span>
+                        {student.class_id && student.class_id !== selectedClassForAssignment?.id && (
+                          <Badge variant="outline" className="ml-2">
+                            {student.class || 'Autre classe'}
+                          </Badge>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAssignStudentsDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleAssignStudents}
+                disabled={assignmentLoading}
+                className="bg-admin-primary hover:bg-admin-primary-hover text-white"
+              >
+                {assignmentLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Assignation...
+                  </>
+                ) : (
+                  <>
+                    Assigner {selectedStudents.length} élève{selectedStudents.length > 1 ? 's' : ''}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search Bar */}
@@ -522,8 +728,13 @@ export function ClassManagementView() {
                     >
                       <Trash2 className="w-4 h-4 text-admin-danger" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-admin-bg">
-                      <MoreHorizontal className="w-4 h-4 text-admin-text-light" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-admin-bg"
+                      onClick={() => openAssignStudentsDialog(cls)}
+                    >
+                      <UserPlus className="w-4 h-4 text-admin-text-light" />
                     </Button>
                   </div>
                 </TableCell>
