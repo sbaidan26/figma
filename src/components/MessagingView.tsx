@@ -114,6 +114,7 @@ export function MessagingView() {
       } else if (user.role === 'teacher') {
         query = query.in('role', ['parent', 'student', 'admin']);
       }
+      // Admin can message everyone, no filter needed
 
       const { data, error } = await query.order('name');
 
@@ -357,26 +358,39 @@ export function MessagingView() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Destinataire</Label>
-                  <Select value={newRecipientId} onValueChange={setNewRecipientId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un destinataire" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableRecipients.map(recipient => (
-                        <SelectItem key={recipient.id} value={recipient.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{getRoleIcon(recipient.role)}</span>
-                            <span>{recipient.name}</span>
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              {recipient.role === 'teacher' ? 'Enseignant' :
-                               recipient.role === 'admin' ? 'Admin' :
-                               recipient.role === 'parent' ? 'Parent' : 'Élève'}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {availableRecipients.length === 0 ? (
+                    <div className="p-4 border border-dashed rounded-lg text-center">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Aucun utilisateur disponible
+                      </p>
+                      {user?.role === 'admin' && (
+                        <p className="text-xs text-muted-foreground">
+                          Utilisez le bouton "Synchroniser les utilisateurs" sur la page d'accueil
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Select value={newRecipientId} onValueChange={setNewRecipientId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir un destinataire" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRecipients.map(recipient => (
+                          <SelectItem key={recipient.id} value={recipient.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{getRoleIcon(recipient.role)}</span>
+                              <span>{recipient.name}</span>
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {recipient.role === 'teacher' ? 'Enseignant' :
+                                 recipient.role === 'admin' ? 'Admin' :
+                                 recipient.role === 'parent' ? 'Parent' : 'Élève'}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="space-y-2">
