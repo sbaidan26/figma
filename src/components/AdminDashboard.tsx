@@ -7,6 +7,7 @@ import { SchoolSettingsView } from './SchoolSettingsView';
 import { GradesReportsView } from './GradesReportsView';
 import { SchoolCommunicationsView } from './SchoolCommunicationsView';
 import { CurriculumMonitoringView } from './CurriculumMonitoringView';
+import { MessagingView } from './MessagingView';
 import {
   LayoutDashboard,
   Users,
@@ -19,7 +20,8 @@ import {
   GraduationCap,
   FileText,
   Megaphone,
-  BookOpen
+  BookOpen,
+  MessageSquare
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
@@ -31,7 +33,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type ViewType = 'home' | 'users' | 'classes' | 'apps' | 'settings' | 'grades' | 'communications' | 'curriculum';
+type ViewType = 'home' | 'users' | 'classes' | 'apps' | 'settings' | 'grades' | 'communications' | 'curriculum' | 'messaging';
 
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const { user } = useAuth();
@@ -41,6 +43,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'home' as ViewType, label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'users' as ViewType, label: 'Utilisateurs', icon: Users, badge: '245' },
     { id: 'classes' as ViewType, label: 'Classes', icon: School },
+    { id: 'messaging' as ViewType, label: 'Messagerie', icon: MessageSquare },
     { id: 'grades' as ViewType, label: 'Notes & bulletins', icon: GraduationCap },
     { id: 'communications' as ViewType, label: 'Communications', icon: Megaphone, badge: '2' },
     { id: 'curriculum' as ViewType, label: 'Suivi programme', icon: BookOpen },
@@ -58,6 +61,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       case 'grades': return 'Notes & bulletins';
       case 'communications': return 'Communications école';
       case 'curriculum': return 'Suivi du programme';
+      case 'messaging': return 'Messagerie';
       default: return 'Administration';
     }
   };
@@ -80,6 +84,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <SchoolCommunicationsView />;
       case 'curriculum':
         return <CurriculumMonitoringView />;
+      case 'messaging':
+        return <MessagingView />;
       default:
         return <AdminDashboardHome />;
     }
