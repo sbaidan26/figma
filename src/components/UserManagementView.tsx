@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -32,42 +32,65 @@ import {
 } from './ui/select';
 import { UserPlus, Search, Edit, Trash2, Mail, Phone, Users, GraduationCap, Heart, MoreHorizontal, Filter } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { supabase } from '../utils/supabase/client';
 
 interface User {
-  id: number;
+  id: string;
+  auth_user_id?: string;
   name: string;
   email: string;
   phone: string;
-  role: 'teacher' | 'parent' | 'student';
+  role: 'teacher' | 'parent' | 'student' | 'admin';
   class?: string;
   subject?: string;
   children?: string[];
-  status?: 'active' | 'inactive';
+  status: 'active' | 'inactive';
+  created_at?: string;
+  updated_at?: string;
 }
 
 export function UserManagementView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'student'>('student');
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const [users] = useState<User[]>([
-    // Teachers
-    { id: 1, name: 'Mme Benali', email: 'benali@madrasati.ma', phone: '0612345678', role: 'teacher', class: 'CM2-A', subject: 'Mathématiques', status: 'active' },
-    { id: 2, name: 'M. El Amrani', email: 'elamrani@madrasati.ma', phone: '0612345679', role: 'teacher', class: 'CE2-B', subject: 'Français', status: 'active' },
-    { id: 3, name: 'Mme Chakir', email: 'chakir@madrasati.ma', phone: '0612345680', role: 'teacher', class: 'CM1-A', subject: 'Sciences', status: 'active' },
-    
-    // Parents
-    { id: 11, name: 'M. Alaoui', email: 'alaoui@email.com', phone: '0623456789', role: 'parent', children: ['Yasmine Alaoui', 'Mehdi Alaoui'], status: 'active' },
-    { id: 12, name: 'Mme Benjelloun', email: 'benjelloun@email.com', phone: '0623456790', role: 'parent', children: ['Sara Benjelloun'], status: 'active' },
-    { id: 13, name: 'M. Tazi', email: 'tazi@email.com', phone: '0623456791', role: 'parent', children: ['Omar Tazi'], status: 'inactive' },
-    
-    // Students
-    { id: 21, name: 'Yasmine Alaoui', email: '', phone: '', role: 'student', class: 'CM2-A', status: 'active' },
-    { id: 22, name: 'Mehdi Alaoui', email: '', phone: '', role: 'student', class: 'CE2-B', status: 'active' },
-    { id: 23, name: 'Sara Benjelloun', email: '', phone: '', role: 'student', class: 'CM2-A', status: 'active' },
-    { id: 24, name: 'Omar Tazi', email: '', phone: '', role: 'student', class: 'CM1-A', status: 'active' },
-    { id: 25, name: 'Fatima Idrissi', email: '', phone: '', role: 'student', class: 'CM2-A', status: 'active' },
-  ]);
+  // Form states
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    class: '',
+    subject: '',
+    children: '',
+    status: 'active' as 'active' | 'inactive'
+  });
+
+  // Fetch users from database
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      toast.error('Erreur lors du chargement des utilisateurs');
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -78,13 +101,130 @@ export function UserManagementView() {
     return filteredUsers.filter(user => user.role === role);
   };
 
-  const handleAddUser = () => {
-    toast.success('Utilisateur ajouté avec succès');
-    setIsAddDialogOpen(false);
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      class: '',
+      subject: '',
+      children: '',
+      status: 'active'
+    });
+    setEditingUser(null);
   };
 
-  const handleDeleteUser = (userName: string) => {
-    toast.success(`${userName} a été supprimé`);
+  const handleAddUser = async () => {
+    try {
+      const userData: any = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        role: selectedRole,
+        status: formData.status
+      };
+
+      if (selectedRole === 'teacher') {
+        userData.subject = formData.subject || null;
+        userData.class = formData.class || null;
+      }
+
+      if (selectedRole === 'student') {
+        userData.class = formData.class || null;
+      }
+
+      if (selectedRole === 'parent' && formData.children) {
+        userData.children = formData.children.split(',').map(c => c.trim());
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .insert([userData]);
+
+      if (error) throw error;
+
+      toast.success('Utilisateur ajouté avec succès');
+      setIsAddDialogOpen(false);
+      resetForm();
+      fetchUsers();
+    } catch (error: any) {
+      toast.error('Erreur lors de l\'ajout de l\'utilisateur');
+      console.error('Error adding user:', error);
+    }
+  };
+
+  const handleEditUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      const userData: any = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        status: formData.status
+      };
+
+      if (editingUser.role === 'teacher') {
+        userData.subject = formData.subject || null;
+        userData.class = formData.class || null;
+      }
+
+      if (editingUser.role === 'student') {
+        userData.class = formData.class || null;
+      }
+
+      if (editingUser.role === 'parent' && formData.children) {
+        userData.children = formData.children.split(',').map(c => c.trim());
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update(userData)
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+
+      toast.success('Utilisateur modifié avec succès');
+      setIsEditDialogOpen(false);
+      resetForm();
+      fetchUsers();
+    } catch (error: any) {
+      toast.error('Erreur lors de la modification de l\'utilisateur');
+      console.error('Error updating user:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${userName} ?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      toast.success(`${userName} a été supprimé`);
+      fetchUsers();
+    } catch (error: any) {
+      toast.error('Erreur lors de la suppression de l\'utilisateur');
+      console.error('Error deleting user:', error);
+    }
+  };
+
+  const openEditDialog = (user: User) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email || '',
+      phone: user.phone || '',
+      class: user.class || '',
+      subject: user.subject || '',
+      children: user.children?.join(', ') || '',
+      status: user.status
+    });
+    setIsEditDialogOpen(true);
   };
 
   return (
@@ -129,19 +269,36 @@ export function UserManagementView() {
 
               <div className="space-y-2">
                 <Label htmlFor="name">Nom complet</Label>
-                <Input id="name" placeholder="Ex: Yasmine Alaoui" />
+                <Input
+                  id="name"
+                  placeholder="Ex: Yasmine Alaoui"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
               </div>
 
               {selectedRole !== 'student' && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="exemple@email.com" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="exemple@email.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="phone">Téléphone</Label>
-                    <Input id="phone" type="tel" placeholder="06XXXXXXXX" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="06XXXXXXXX"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    />
                   </div>
                 </>
               )}
@@ -150,11 +307,21 @@ export function UserManagementView() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="subject">Matière principale</Label>
-                    <Input id="subject" placeholder="Ex: Mathématiques" />
+                    <Input
+                      id="subject"
+                      placeholder="Ex: Mathématiques"
+                      value={formData.subject}
+                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="class">Classe</Label>
-                    <Input id="class" placeholder="Ex: CM2-A" />
+                    <Input
+                      id="class"
+                      placeholder="Ex: CM2-A"
+                      value={formData.class}
+                      onChange={(e) => setFormData({...formData, class: e.target.value})}
+                    />
                   </div>
                 </>
               )}
@@ -162,26 +329,160 @@ export function UserManagementView() {
               {selectedRole === 'student' && (
                 <div className="space-y-2">
                   <Label htmlFor="class">Classe</Label>
-                  <Select>
+                  <Select value={formData.class} onValueChange={(val) => setFormData({...formData, class: val})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner une classe" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cm2-a">CM2-A</SelectItem>
-                      <SelectItem value="cm2-b">CM2-B</SelectItem>
-                      <SelectItem value="cm1-a">CM1-A</SelectItem>
-                      <SelectItem value="ce2-b">CE2-B</SelectItem>
+                      <SelectItem value="CM2-A">CM2-A</SelectItem>
+                      <SelectItem value="CM2-B">CM2-B</SelectItem>
+                      <SelectItem value="CM1-A">CM1-A</SelectItem>
+                      <SelectItem value="CE2-B">CE2-B</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               )}
+
+              {selectedRole === 'parent' && (
+                <div className="space-y-2">
+                  <Label htmlFor="children">Enfants (séparés par des virgules)</Label>
+                  <Input
+                    id="children"
+                    placeholder="Ex: Yasmine Alaoui, Mehdi Alaoui"
+                    value={formData.children}
+                    onChange={(e) => setFormData({...formData, children: e.target.value})}
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
                 Annuler
               </Button>
               <Button onClick={handleAddUser} className="bg-admin-primary hover:bg-admin-primary-hover text-white">
                 Créer le profil
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Modifier un utilisateur</DialogTitle>
+              <DialogDescription>
+                Modifiez les informations de l'utilisateur
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nom complet</Label>
+                <Input
+                  id="edit-name"
+                  placeholder="Ex: Yasmine Alaoui"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+
+              {editingUser?.role !== 'student' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-email">Email</Label>
+                    <Input
+                      id="edit-email"
+                      type="email"
+                      placeholder="exemple@email.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phone">Téléphone</Label>
+                    <Input
+                      id="edit-phone"
+                      type="tel"
+                      placeholder="06XXXXXXXX"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    />
+                  </div>
+                </>
+              )}
+
+              {editingUser?.role === 'teacher' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-subject">Matière principale</Label>
+                    <Input
+                      id="edit-subject"
+                      placeholder="Ex: Mathématiques"
+                      value={formData.subject}
+                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-class">Classe</Label>
+                    <Input
+                      id="edit-class"
+                      placeholder="Ex: CM2-A"
+                      value={formData.class}
+                      onChange={(e) => setFormData({...formData, class: e.target.value})}
+                    />
+                  </div>
+                </>
+              )}
+
+              {editingUser?.role === 'student' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-class">Classe</Label>
+                  <Select value={formData.class} onValueChange={(val) => setFormData({...formData, class: val})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une classe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CM2-A">CM2-A</SelectItem>
+                      <SelectItem value="CM2-B">CM2-B</SelectItem>
+                      <SelectItem value="CM1-A">CM1-A</SelectItem>
+                      <SelectItem value="CE2-B">CE2-B</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {editingUser?.role === 'parent' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-children">Enfants (séparés par des virgules)</Label>
+                  <Input
+                    id="edit-children"
+                    placeholder="Ex: Yasmine Alaoui, Mehdi Alaoui"
+                    value={formData.children}
+                    onChange={(e) => setFormData({...formData, children: e.target.value})}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Statut</Label>
+                <Select value={formData.status} onValueChange={(val: any) => setFormData({...formData, status: val})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Actif</SelectItem>
+                    <SelectItem value="inactive">Inactif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); resetForm(); }}>
+                Annuler
+              </Button>
+              <Button onClick={handleEditUser} className="bg-admin-primary hover:bg-admin-primary-hover text-white">
+                Enregistrer
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -295,14 +596,19 @@ export function UserManagementView() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-admin-bg">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-admin-bg"
+                          onClick={() => openEditDialog(user)}
+                        >
                           <Edit className="w-4 h-4 text-admin-primary" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 hover:bg-admin-danger/10"
-                          onClick={() => handleDeleteUser(user.name)}
+                          onClick={() => handleDeleteUser(user.id, user.name)}
                         >
                           <Trash2 className="w-4 h-4 text-admin-danger" />
                         </Button>
@@ -368,14 +674,19 @@ export function UserManagementView() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-admin-bg">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-admin-bg"
+                          onClick={() => openEditDialog(user)}
+                        >
                           <Edit className="w-4 h-4 text-admin-primary" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 hover:bg-admin-danger/10"
-                          onClick={() => handleDeleteUser(user.name)}
+                          onClick={() => handleDeleteUser(user.id, user.name)}
                         >
                           <Trash2 className="w-4 h-4 text-admin-danger" />
                         </Button>
@@ -443,14 +754,19 @@ export function UserManagementView() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-admin-bg">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-admin-bg"
+                          onClick={() => openEditDialog(user)}
+                        >
                           <Edit className="w-4 h-4 text-admin-primary" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 hover:bg-admin-danger/10"
-                          onClick={() => handleDeleteUser(user.name)}
+                          onClick={() => handleDeleteUser(user.id, user.name)}
                         >
                           <Trash2 className="w-4 h-4 text-admin-danger" />
                         </Button>
