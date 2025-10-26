@@ -28,7 +28,6 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { CartoonEmoji } from './CartoonEmoji';
 import { Checkbox } from './ui/checkbox';
 
 interface Homework {

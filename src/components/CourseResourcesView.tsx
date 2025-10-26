@@ -24,7 +24,6 @@ import { Card } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { CartoonEmoji } from './CartoonEmoji';
 
 interface CourseResource {
   id: number;

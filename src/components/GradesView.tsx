@@ -29,7 +29,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
-import { CartoonEmoji } from './CartoonEmoji';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Tabs, TabsList, TabsContent, TabsTrigger } from './ui/tabs';
