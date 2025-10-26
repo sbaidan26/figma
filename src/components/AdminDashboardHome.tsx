@@ -1,19 +1,55 @@
+import { useState } from 'react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { 
-  Users, 
-  GraduationCap, 
-  UserCheck, 
+import {
+  Users,
+  GraduationCap,
+  UserCheck,
   TrendingUp,
   Calendar,
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { projectId } from '../utils/supabase/info';
+import { useAuth } from '../contexts/AuthContext';
 
 export function AdminDashboardHome() {
+  const { session } = useAuth();
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncUsers = async () => {
+    if (!session) return;
+
+    setSyncing(true);
+    try {
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
+      const response = await fetch(`${serverUrl}/users/sync`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync users');
+      }
+
+      toast.success(`Synchronisation réussie: ${data.synced} utilisateurs synchronisés`);
+    } catch (error) {
+      console.error('Error syncing users:', error);
+      toast.error('Erreur lors de la synchronisation');
+    } finally {
+      setSyncing(false);
+    }
+  };
   const stats = [
     {
       title: "Élèves inscrits",
@@ -116,16 +152,27 @@ export function AdminDashboardHome() {
     <div className="space-y-6">
       {/* Welcome Banner */}
       <Card className="bg-gradient-to-r from-admin-primary/10 via-admin-accent-green/10 to-admin-accent-orange/10 border-admin-border p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center">
-            <CartoonEmoji type="wave" className="w-12 h-12" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center">
+              <CartoonEmoji type="wave" className="w-12 h-12" />
+            </div>
+            <div>
+              <h2 className="text-admin-text mb-1">Bienvenue, M. Alami</h2>
+              <p className="text-admin-text-light">
+                Voici un aperçu de l'activité de votre établissement
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-admin-text mb-1">Bienvenue, M. Alami</h2>
-            <p className="text-admin-text-light">
-              Voici un aperçu de l'activité de votre établissement
-            </p>
-          </div>
+          <Button
+            onClick={handleSyncUsers}
+            disabled={syncing}
+            variant="outline"
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Synchronisation...' : 'Synchroniser les utilisateurs'}
+          </Button>
         </div>
       </Card>
 

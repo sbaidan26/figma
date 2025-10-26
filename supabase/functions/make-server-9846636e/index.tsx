@@ -105,6 +105,19 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
     await kv.set(`user:${data.user.id}`, userData);
     await kv.set(`user:email:${email}`, data.user.id);
 
+    // Also create user in Supabase users table
+    try {
+      await supabaseAdmin.from('users').insert({
+        auth_user_id: data.user.id,
+        name,
+        email,
+        role,
+        status: 'active'
+      });
+    } catch (dbError) {
+      console.log('Error creating user in database (non-fatal):', dbError);
+    }
+
     return c.json({ 
       success: true, 
       user: userData,
@@ -191,7 +204,7 @@ app.delete("/make-server-9846636e/users/:userId", requireAuth, async (c) => {
   try {
     const currentUser = c.get('user');
     const currentUserData = await kv.get(`user:${currentUser.id}`);
-    
+
     if (currentUserData?.role !== 'admin') {
       return c.json({ error: 'Forbidden: Admin access required' }, 403);
     }
@@ -205,7 +218,7 @@ app.delete("/make-server-9846636e/users/:userId", requireAuth, async (c) => {
 
     // Delete from auth
     await supabaseAdmin.auth.admin.deleteUser(userId);
-    
+
     // Delete from KV store
     await kv.del(`user:${userId}`);
     await kv.del(`user:email:${userData.email}`);
@@ -217,570 +230,51 @@ app.delete("/make-server-9846636e/users/:userId", requireAuth, async (c) => {
   }
 });
 
-// ============================================
-// BOARD/PANCARTE ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/boards", requireAuth, async (c) => {
+app.post("/make-server-9846636e/users/sync", requireAuth, async (c) => {
   try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const boardData = await c.req.json();
-    
-    const board = {
-      id: crypto.randomUUID(),
-      ...boardData,
-      createdBy: user.id,
-      createdByName: userData.name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    const currentUser = c.get('user');
+    const currentUserData = await kv.get(`user:${currentUser.id}`);
 
-    await kv.set(`board:${board.id}`, board);
-    
-    return c.json({ success: true, board });
-  } catch (error) {
-    console.log('Exception creating board:', error);
-    return c.json({ error: 'Failed to create board' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/boards", requireAuth, async (c) => {
-  try {
-    const boards = await kv.getByPrefix('board:');
-    const boardsList = boards.map((b: any) => b.value);
-    
-    return c.json({ boards: boardsList });
-  } catch (error) {
-    console.log('Exception fetching boards:', error);
-    return c.json({ error: 'Failed to fetch boards' }, 500);
-  }
-});
-
-app.put("/make-server-9846636e/boards/:boardId", requireAuth, async (c) => {
-  try {
-    const boardId = c.req.param('boardId');
-    const updates = await c.req.json();
-    
-    const board = await kv.get(`board:${boardId}`);
-    if (!board) {
-      return c.json({ error: 'Board not found' }, 404);
+    if (currentUserData?.role !== 'admin') {
+      return c.json({ error: 'Forbidden: Admin access required' }, 403);
     }
 
-    const updatedBoard = {
-      ...board,
-      ...updates,
-      id: board.id,
-      updatedAt: new Date().toISOString()
-    };
+    const users = await kv.getByPrefix('user:');
+    const usersToSync = users
+      .filter((u: any) => u && !u.key?.includes('email:'))
+      .map((u: any) => u);
 
-    await kv.set(`board:${boardId}`, updatedBoard);
-    
-    return c.json({ success: true, board: updatedBoard });
-  } catch (error) {
-    console.log('Exception updating board:', error);
-    return c.json({ error: 'Failed to update board' }, 500);
-  }
-});
+    let synced = 0;
+    let errors = 0;
 
-app.delete("/make-server-9846636e/boards/:boardId", requireAuth, async (c) => {
-  try {
-    const boardId = c.req.param('boardId');
-    await kv.del(`board:${boardId}`);
-    
-    return c.json({ success: true, message: 'Board deleted successfully' });
-  } catch (error) {
-    console.log('Exception deleting board:', error);
-    return c.json({ error: 'Failed to delete board' }, 500);
-  }
-});
+    for (const userEntry of usersToSync) {
+      try {
+        const user = userEntry.value || userEntry;
+        const { error } = await supabaseAdmin.from('users').upsert({
+          auth_user_id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: 'active'
+        }, { onConflict: 'auth_user_id' });
 
-// ============================================
-// MESSAGE ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/messages", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const messageData = await c.req.json();
-    
-    const message = {
-      id: crypto.randomUUID(),
-      ...messageData,
-      senderId: user.id,
-      senderName: userData.name,
-      senderRole: userData.role,
-      read: false,
-      createdAt: new Date().toISOString()
-    };
-
-    await kv.set(`message:${message.id}`, message);
-    
-    // Also store in recipient's inbox
-    if (message.recipientId) {
-      const recipientMessages = await kv.get(`inbox:${message.recipientId}`) || [];
-      recipientMessages.push(message.id);
-      await kv.set(`inbox:${message.recipientId}`, recipientMessages);
-    }
-    
-    return c.json({ success: true, message });
-  } catch (error) {
-    console.log('Exception creating message:', error);
-    return c.json({ error: 'Failed to create message' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/messages", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const type = c.req.query('type'); // 'sent' or 'received'
-    
-    const allMessages = await kv.getByPrefix('message:');
-    let userMessages = allMessages.map((m: any) => m.value);
-
-    if (type === 'sent') {
-      userMessages = userMessages.filter((m: any) => m.senderId === user.id);
-    } else if (type === 'received') {
-      userMessages = userMessages.filter((m: any) => m.recipientId === user.id);
-    } else {
-      // Return all messages involving the user
-      userMessages = userMessages.filter((m: any) => 
-        m.senderId === user.id || m.recipientId === user.id
-      );
-    }
-    
-    return c.json({ messages: userMessages });
-  } catch (error) {
-    console.log('Exception fetching messages:', error);
-    return c.json({ error: 'Failed to fetch messages' }, 500);
-  }
-});
-
-app.put("/make-server-9846636e/messages/:messageId/read", requireAuth, async (c) => {
-  try {
-    const messageId = c.req.param('messageId');
-    const message = await kv.get(`message:${messageId}`);
-    
-    if (!message) {
-      return c.json({ error: 'Message not found' }, 404);
+        if (error) throw error;
+        synced++;
+      } catch (error) {
+        console.log(`Error syncing user:`, error);
+        errors++;
+      }
     }
 
-    message.read = true;
-    await kv.set(`message:${messageId}`, message);
-    
-    return c.json({ success: true, message });
+    return c.json({
+      success: true,
+      synced,
+      errors,
+      total: usersToSync.length
+    });
   } catch (error) {
-    console.log('Exception marking message as read:', error);
-    return c.json({ error: 'Failed to mark message as read' }, 500);
-  }
-});
-
-// ============================================
-// HOMEWORK ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/homework", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const homeworkData = await c.req.json();
-    
-    const homework = {
-      id: crypto.randomUUID(),
-      ...homeworkData,
-      createdBy: user.id,
-      createdByName: userData.name,
-      createdAt: new Date().toISOString(),
-      submissions: []
-    };
-
-    await kv.set(`homework:${homework.id}`, homework);
-    
-    return c.json({ success: true, homework });
-  } catch (error) {
-    console.log('Exception creating homework:', error);
-    return c.json({ error: 'Failed to create homework' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/homework", requireAuth, async (c) => {
-  try {
-    const homeworks = await kv.getByPrefix('homework:');
-    const homeworkList = homeworks.map((h: any) => h.value);
-    
-    return c.json({ homework: homeworkList });
-  } catch (error) {
-    console.log('Exception fetching homework:', error);
-    return c.json({ error: 'Failed to fetch homework' }, 500);
-  }
-});
-
-app.post("/make-server-9846636e/homework/:homeworkId/submit", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const homeworkId = c.req.param('homeworkId');
-    const submissionData = await c.req.json();
-    
-    const homework = await kv.get(`homework:${homeworkId}`);
-    if (!homework) {
-      return c.json({ error: 'Homework not found' }, 404);
-    }
-
-    const submission = {
-      studentId: user.id,
-      studentName: userData.name,
-      submittedAt: new Date().toISOString(),
-      ...submissionData
-    };
-
-    homework.submissions = homework.submissions || [];
-    
-    // Remove existing submission if any
-    homework.submissions = homework.submissions.filter((s: any) => s.studentId !== user.id);
-    homework.submissions.push(submission);
-
-    await kv.set(`homework:${homeworkId}`, homework);
-    
-    return c.json({ success: true, homework });
-  } catch (error) {
-    console.log('Exception submitting homework:', error);
-    return c.json({ error: 'Failed to submit homework' }, 500);
-  }
-});
-
-// ============================================
-// GRADES ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/grades", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const gradeData = await c.req.json();
-    
-    const grade = {
-      id: crypto.randomUUID(),
-      ...gradeData,
-      teacherId: user.id,
-      teacherName: userData.name,
-      date: gradeData.date || new Date().toISOString()
-    };
-
-    await kv.set(`grade:${grade.id}`, grade);
-    
-    // Also index by student
-    const studentGrades = await kv.get(`student:${grade.studentId}:grades`) || [];
-    studentGrades.push(grade.id);
-    await kv.set(`student:${grade.studentId}:grades`, studentGrades);
-    
-    return c.json({ success: true, grade });
-  } catch (error) {
-    console.log('Exception creating grade:', error);
-    return c.json({ error: 'Failed to create grade' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/grades", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const studentId = c.req.query('studentId');
-    
-    let grades = await kv.getByPrefix('grade:');
-    let gradesList = grades.map((g: any) => g.value);
-
-    // Filter based on role
-    if (userData.role === 'student') {
-      gradesList = gradesList.filter((g: any) => g.studentId === user.id);
-    } else if (userData.role === 'parent' && studentId) {
-      gradesList = gradesList.filter((g: any) => g.studentId === studentId);
-    } else if (studentId) {
-      gradesList = gradesList.filter((g: any) => g.studentId === studentId);
-    }
-    
-    return c.json({ grades: gradesList });
-  } catch (error) {
-    console.log('Exception fetching grades:', error);
-    return c.json({ error: 'Failed to fetch grades' }, 500);
-  }
-});
-
-// ============================================
-// SCHEDULE ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/schedule", requireAuth, async (c) => {
-  try {
-    const scheduleData = await c.req.json();
-    
-    const entry = {
-      id: crypto.randomUUID(),
-      ...scheduleData
-    };
-
-    await kv.set(`schedule:${entry.id}`, entry);
-    
-    return c.json({ success: true, entry });
-  } catch (error) {
-    console.log('Exception creating schedule entry:', error);
-    return c.json({ error: 'Failed to create schedule entry' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/schedule", requireAuth, async (c) => {
-  try {
-    const classId = c.req.query('classId');
-    
-    let schedules = await kv.getByPrefix('schedule:');
-    let scheduleList = schedules.map((s: any) => s.value);
-
-    if (classId) {
-      scheduleList = scheduleList.filter((s: any) => s.classId === classId);
-    }
-    
-    return c.json({ schedule: scheduleList });
-  } catch (error) {
-    console.log('Exception fetching schedule:', error);
-    return c.json({ error: 'Failed to fetch schedule' }, 500);
-  }
-});
-
-// ============================================
-// COURSE RESOURCES ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/resources", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const resourceData = await c.req.json();
-    
-    const resource = {
-      id: crypto.randomUUID(),
-      ...resourceData,
-      createdBy: user.id,
-      createdByName: userData.name,
-      createdAt: new Date().toISOString()
-    };
-
-    await kv.set(`resource:${resource.id}`, resource);
-    
-    return c.json({ success: true, resource });
-  } catch (error) {
-    console.log('Exception creating resource:', error);
-    return c.json({ error: 'Failed to create resource' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/resources", requireAuth, async (c) => {
-  try {
-    const resources = await kv.getByPrefix('resource:');
-    const resourcesList = resources.map((r: any) => r.value);
-    
-    return c.json({ resources: resourcesList });
-  } catch (error) {
-    console.log('Exception fetching resources:', error);
-    return c.json({ error: 'Failed to fetch resources' }, 500);
-  }
-});
-
-// ============================================
-// LIAISON ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/liaison", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const liaisonData = await c.req.json();
-    
-    const entry = {
-      id: crypto.randomUUID(),
-      ...liaisonData,
-      createdBy: user.id,
-      createdByName: userData.name,
-      createdAt: new Date().toISOString(),
-      signatures: []
-    };
-
-    await kv.set(`liaison:${entry.id}`, entry);
-    
-    return c.json({ success: true, entry });
-  } catch (error) {
-    console.log('Exception creating liaison entry:', error);
-    return c.json({ error: 'Failed to create liaison entry' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/liaison", requireAuth, async (c) => {
-  try {
-    const entries = await kv.getByPrefix('liaison:');
-    const liaisonList = entries.map((e: any) => e.value);
-    
-    return c.json({ liaison: liaisonList });
-  } catch (error) {
-    console.log('Exception fetching liaison entries:', error);
-    return c.json({ error: 'Failed to fetch liaison entries' }, 500);
-  }
-});
-
-app.post("/make-server-9846636e/liaison/:entryId/sign", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const entryId = c.req.param('entryId');
-    
-    const entry = await kv.get(`liaison:${entryId}`);
-    if (!entry) {
-      return c.json({ error: 'Liaison entry not found' }, 404);
-    }
-
-    const signature = {
-      userId: user.id,
-      userName: userData.name,
-      signedAt: new Date().toISOString()
-    };
-
-    entry.signatures = entry.signatures || [];
-    
-    // Remove existing signature if any
-    entry.signatures = entry.signatures.filter((s: any) => s.userId !== user.id);
-    entry.signatures.push(signature);
-
-    await kv.set(`liaison:${entryId}`, entry);
-    
-    return c.json({ success: true, entry });
-  } catch (error) {
-    console.log('Exception signing liaison entry:', error);
-    return c.json({ error: 'Failed to sign liaison entry' }, 500);
-  }
-});
-
-// ============================================
-// CLASSES ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/classes", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const classData = await c.req.json();
-    
-    const classInfo = {
-      id: crypto.randomUUID(),
-      ...classData,
-      teacherId: user.id,
-      teacherName: userData.name,
-      createdAt: new Date().toISOString(),
-      studentCount: 0
-    };
-
-    await kv.set(`class:${classInfo.id}`, classInfo);
-    
-    return c.json({ success: true, class: classInfo });
-  } catch (error) {
-    console.log('Exception creating class:', error);
-    return c.json({ error: 'Failed to create class' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/classes", requireAuth, async (c) => {
-  try {
-    const classes = await kv.getByPrefix('class:');
-    const classList = classes.map((cls: any) => cls.value);
-    
-    return c.json({ classes: classList });
-  } catch (error) {
-    console.log('Exception fetching classes:', error);
-    return c.json({ error: 'Failed to fetch classes' }, 500);
-  }
-});
-
-// ============================================
-// ATTENDANCE ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/attendance", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const attendanceData = await c.req.json();
-    
-    const record = {
-      id: crypto.randomUUID(),
-      ...attendanceData,
-      recordedBy: user.id,
-      recordedAt: new Date().toISOString()
-    };
-
-    await kv.set(`attendance:${record.id}`, record);
-    
-    return c.json({ success: true, record });
-  } catch (error) {
-    console.log('Exception creating attendance record:', error);
-    return c.json({ error: 'Failed to create attendance record' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/attendance", requireAuth, async (c) => {
-  try {
-    const studentId = c.req.query('studentId');
-    const classId = c.req.query('classId');
-    
-    let records = await kv.getByPrefix('attendance:');
-    let attendanceList = records.map((r: any) => r.value);
-
-    if (studentId) {
-      attendanceList = attendanceList.filter((r: any) => r.studentId === studentId);
-    }
-    if (classId) {
-      attendanceList = attendanceList.filter((r: any) => r.classId === classId);
-    }
-    
-    return c.json({ attendance: attendanceList });
-  } catch (error) {
-    console.log('Exception fetching attendance:', error);
-    return c.json({ error: 'Failed to fetch attendance' }, 500);
-  }
-});
-
-// ============================================
-// EVENTS ROUTES
-// ============================================
-
-app.post("/make-server-9846636e/events", requireAuth, async (c) => {
-  try {
-    const user = c.get('user');
-    const userData = await kv.get(`user:${user.id}`);
-    const eventData = await c.req.json();
-    
-    const event = {
-      id: crypto.randomUUID(),
-      ...eventData,
-      createdBy: user.id,
-      createdByName: userData.name,
-      createdAt: new Date().toISOString()
-    };
-
-    await kv.set(`event:${event.id}`, event);
-    
-    return c.json({ success: true, event });
-  } catch (error) {
-    console.log('Exception creating event:', error);
-    return c.json({ error: 'Failed to create event' }, 500);
-  }
-});
-
-app.get("/make-server-9846636e/events", requireAuth, async (c) => {
-  try {
-    const events = await kv.getByPrefix('event:');
-    const eventsList = events.map((e: any) => e.value);
-    
-    return c.json({ events: eventsList });
-  } catch (error) {
-    console.log('Exception fetching events:', error);
-    return c.json({ error: 'Failed to fetch events' }, 500);
+    console.log('Exception syncing users:', error);
+    return c.json({ error: 'Failed to sync users' }, 500);
   }
 });
 
