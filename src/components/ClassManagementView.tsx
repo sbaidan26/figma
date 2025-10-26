@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -30,72 +30,187 @@ import {
 } from './ui/table';
 import { Plus, Search, Edit, Trash2, Users, BookOpen, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { supabase } from '../utils/supabase/client';
 
 interface Class {
-  id: number;
+  id: string;
   name: string;
   level: string;
-  teacher: string;
-  studentCount: number;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  student_count: number;
   subjects: string[];
-  room: string;
+  room: string | null;
+  status: 'active' | 'inactive';
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface Teacher {
+  id: string;
+  name: string;
 }
 
 export function ClassManagementView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
 
-  const [classes] = useState<Class[]>([
-    {
-      id: 1,
-      name: 'CM2-A',
-      level: 'CM2',
-      teacher: 'Mme Benali',
-      studentCount: 25,
-      subjects: ['Mathématiques', 'Français', 'Sciences'],
-      room: 'Salle 201'
-    },
-    {
-      id: 2,
-      name: 'CM2-B',
-      level: 'CM2',
-      teacher: 'M. Idrissi',
-      studentCount: 23,
-      subjects: ['Mathématiques', 'Français', 'Histoire'],
-      room: 'Salle 202'
-    },
-    {
-      id: 3,
-      name: 'CM1-A',
-      level: 'CM1',
-      teacher: 'Mme Chakir',
-      studentCount: 24,
-      subjects: ['Sciences', 'Géographie'],
-      room: 'Salle 103'
-    },
-    {
-      id: 4,
-      name: 'CE2-B',
-      level: 'CE2',
-      teacher: 'M. El Amrani',
-      studentCount: 22,
-      subjects: ['Français', 'Mathématiques'],
-      room: 'Salle 104'
+  const [formData, setFormData] = useState({
+    name: '',
+    level: '',
+    teacher_id: '',
+    room: '',
+    subjects: ''
+  });
+
+  useEffect(() => {
+    fetchClasses();
+    fetchTeachers();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error: any) {
+      toast.error('Erreur lors du chargement des classes');
+      console.error('Error fetching classes:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const fetchTeachers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('role', 'teacher')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setTeachers(data || []);
+    } catch (error: any) {
+      console.error('Error fetching teachers:', error);
+    }
+  };
 
   const filteredClasses = classes.filter(cls =>
     cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cls.teacher.toLowerCase().includes(searchQuery.toLowerCase())
+    (cls.teacher_name && cls.teacher_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const handleCreateClass = () => {
-    toast.success('Classe créée avec succès');
-    setIsCreateDialogOpen(false);
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      level: '',
+      teacher_id: '',
+      room: '',
+      subjects: ''
+    });
+    setEditingClass(null);
   };
 
-  const handleDeleteClass = (className: string) => {
-    toast.success(`${className} a été supprimée`);
+  const handleCreateClass = async () => {
+    try {
+      const teacherName = teachers.find(t => t.id === formData.teacher_id)?.name || null;
+      const subjectsArray = formData.subjects.split(',').map(s => s.trim()).filter(s => s);
+
+      const { error } = await supabase
+        .from('classes')
+        .insert([{
+          name: formData.name,
+          level: formData.level,
+          teacher_id: formData.teacher_id || null,
+          teacher_name: teacherName,
+          room: formData.room || null,
+          subjects: subjectsArray
+        }]);
+
+      if (error) throw error;
+
+      toast.success('Classe créée avec succès');
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchClasses();
+    } catch (error: any) {
+      toast.error('Erreur lors de la création de la classe');
+      console.error('Error creating class:', error);
+    }
+  };
+
+  const handleEditClass = async () => {
+    if (!editingClass) return;
+
+    try {
+      const teacherName = teachers.find(t => t.id === formData.teacher_id)?.name || null;
+      const subjectsArray = formData.subjects.split(',').map(s => s.trim()).filter(s => s);
+
+      const { error } = await supabase
+        .from('classes')
+        .update({
+          name: formData.name,
+          level: formData.level,
+          teacher_id: formData.teacher_id || null,
+          teacher_name: teacherName,
+          room: formData.room || null,
+          subjects: subjectsArray
+        })
+        .eq('id', editingClass.id);
+
+      if (error) throw error;
+
+      toast.success('Classe modifiée avec succès');
+      setIsEditDialogOpen(false);
+      resetForm();
+      fetchClasses();
+    } catch (error: any) {
+      toast.error('Erreur lors de la modification de la classe');
+      console.error('Error updating class:', error);
+    }
+  };
+
+  const handleDeleteClass = async (classId: string, className: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${className} ?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .delete()
+        .eq('id', classId);
+
+      if (error) throw error;
+
+      toast.success(`${className} a été supprimée`);
+      fetchClasses();
+    } catch (error: any) {
+      toast.error('Erreur lors de la suppression de la classe');
+      console.error('Error deleting class:', error);
+    }
+  };
+
+  const openEditDialog = (cls: Class) => {
+    setEditingClass(cls);
+    setFormData({
+      name: cls.name,
+      level: cls.level,
+      teacher_id: cls.teacher_id || '',
+      room: cls.room || '',
+      subjects: cls.subjects?.join(', ') || ''
+    });
+    setIsEditDialogOpen(true);
   };
 
   return (
@@ -126,51 +241,155 @@ export function ClassManagementView() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="className">Nom de la classe</Label>
-                <Input id="className" placeholder="Ex: CM2-A" />
+                <Input
+                  id="className"
+                  placeholder="Ex: CM2-A"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="level">Niveau</Label>
-                <Select>
+                <Select value={formData.level} onValueChange={(val) => setFormData({...formData, level: val})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner un niveau" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cp">CP</SelectItem>
-                    <SelectItem value="ce1">CE1</SelectItem>
-                    <SelectItem value="ce2">CE2</SelectItem>
-                    <SelectItem value="cm1">CM1</SelectItem>
-                    <SelectItem value="cm2">CM2</SelectItem>
+                    <SelectItem value="CP">CP</SelectItem>
+                    <SelectItem value="CE1">CE1</SelectItem>
+                    <SelectItem value="CE2">CE2</SelectItem>
+                    <SelectItem value="CM1">CM1</SelectItem>
+                    <SelectItem value="CM2">CM2</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="teacher">Enseignant principal</Label>
-                <Select>
+                <Select value={formData.teacher_id} onValueChange={(val) => setFormData({...formData, teacher_id: val})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner un enseignant" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="benali">Mme Benali</SelectItem>
-                    <SelectItem value="elamrani">M. El Amrani</SelectItem>
-                    <SelectItem value="chakir">Mme Chakir</SelectItem>
-                    <SelectItem value="idrissi">M. Idrissi</SelectItem>
+                    {teachers.map(teacher => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="room">Salle</Label>
-                <Input id="room" placeholder="Ex: Salle 201" />
+                <Input
+                  id="room"
+                  placeholder="Ex: Salle 201"
+                  value={formData.room}
+                  onChange={(e) => setFormData({...formData, room: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subjects">Matières (séparées par des virgules)</Label>
+                <Input
+                  id="subjects"
+                  placeholder="Ex: Mathématiques, Français, Sciences"
+                  value={formData.subjects}
+                  onChange={(e) => setFormData({...formData, subjects: e.target.value})}
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button variant="outline" onClick={() => { setIsCreateDialogOpen(false); resetForm(); }}>
                 Annuler
               </Button>
               <Button onClick={handleCreateClass} className="bg-admin-primary hover:bg-admin-primary-hover text-white">
                 Créer la classe
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Class Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Modifier la classe</DialogTitle>
+              <DialogDescription>
+                Modifiez les informations de la classe
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-className">Nom de la classe</Label>
+                <Input
+                  id="edit-className"
+                  placeholder="Ex: CM2-A"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-level">Niveau</Label>
+                <Select value={formData.level} onValueChange={(val) => setFormData({...formData, level: val})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un niveau" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CP">CP</SelectItem>
+                    <SelectItem value="CE1">CE1</SelectItem>
+                    <SelectItem value="CE2">CE2</SelectItem>
+                    <SelectItem value="CM1">CM1</SelectItem>
+                    <SelectItem value="CM2">CM2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-teacher">Enseignant principal</Label>
+                <Select value={formData.teacher_id} onValueChange={(val) => setFormData({...formData, teacher_id: val})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un enseignant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teachers.map(teacher => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-room">Salle</Label>
+                <Input
+                  id="edit-room"
+                  placeholder="Ex: Salle 201"
+                  value={formData.room}
+                  onChange={(e) => setFormData({...formData, room: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-subjects">Matières (séparées par des virgules)</Label>
+                <Input
+                  id="edit-subjects"
+                  placeholder="Ex: Mathématiques, Français, Sciences"
+                  value={formData.subjects}
+                  onChange={(e) => setFormData({...formData, subjects: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); resetForm(); }}>
+                Annuler
+              </Button>
+              <Button onClick={handleEditClass} className="bg-admin-primary hover:bg-admin-primary-hover text-white">
+                Enregistrer
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -209,7 +428,7 @@ export function ClassManagementView() {
             <div>
               <p className="text-sm text-admin-text-light mb-1">Total élèves</p>
               <h3 className="text-3xl text-admin-text">
-                {classes.reduce((sum, cls) => sum + cls.studentCount, 0)}
+                {classes.reduce((sum, cls) => sum + cls.student_count, 0)}
               </h3>
             </div>
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center">
@@ -223,7 +442,7 @@ export function ClassManagementView() {
             <div>
               <p className="text-sm text-admin-text-light mb-1">Moyenne par classe</p>
               <h3 className="text-3xl text-admin-text">
-                {Math.round(classes.reduce((sum, cls) => sum + cls.studentCount, 0) / classes.length)}
+                {classes.length > 0 ? Math.round(classes.reduce((sum, cls) => sum + cls.student_count, 0) / classes.length) : 0}
               </h3>
             </div>
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center">
@@ -263,11 +482,11 @@ export function ClassManagementView() {
                     {cls.level}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-admin-text">{cls.teacher}</TableCell>
+                <TableCell className="text-admin-text">{cls.teacher_name || 'Non assigné'}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-admin-text-light" />
-                    <span className="text-admin-text">{cls.studentCount}</span>
+                    <span className="text-admin-text">{cls.student_count}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-admin-text-light">{cls.room}</TableCell>
@@ -287,14 +506,19 @@ export function ClassManagementView() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-admin-bg">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-admin-bg"
+                      onClick={() => openEditDialog(cls)}
+                    >
                       <Edit className="w-4 h-4 text-admin-primary" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8 hover:bg-admin-danger/10"
-                      onClick={() => handleDeleteClass(cls.name)}
+                      onClick={() => handleDeleteClass(cls.id, cls.name)}
                     >
                       <Trash2 className="w-4 h-4 text-admin-danger" />
                     </Button>
