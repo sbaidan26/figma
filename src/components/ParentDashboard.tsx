@@ -222,12 +222,12 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
 
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm">Parent • Classe CM2-A</p>
-                  <p className="text-sm text-muted-foreground">Marie Dupont</p>
+                  <p className="text-sm">Parent</p>
+                  <p className="text-sm text-muted-foreground">{user?.name || 'Parent'}</p>
                 </div>
                 <Avatar className="w-12 h-12 border-2 border-primary/30">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                    MD
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'P'}
                   </AvatarFallback>
                 </Avatar>
               </div>

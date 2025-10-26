@@ -255,12 +255,12 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm">Enseignante • Classe CM2-A</p>
-                  <p className="text-sm text-muted-foreground">Mme Benali</p>
+                  <p className="text-sm">Enseignant(e)</p>
+                  <p className="text-sm text-muted-foreground">{user?.name || 'Enseignant'}</p>
                 </div>
                 <Avatar className="w-12 h-12 border-2 border-primary/30">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
-                    MB
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'E'}
                   </AvatarFallback>
                 </Avatar>
               </div>
