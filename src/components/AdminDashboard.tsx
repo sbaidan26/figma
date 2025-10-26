@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Toaster } from './ui/sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -33,6 +34,7 @@ interface AdminDashboardProps {
 type ViewType = 'home' | 'users' | 'classes' | 'apps' | 'settings' | 'grades' | 'communications' | 'curriculum';
 
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
+  const { user } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('home');
 
   const navigationItems = [
@@ -162,12 +164,14 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm text-admin-text">M. Alami</p>
-                  <p className="text-xs text-admin-text-light">Directeur</p>
+                  <p className="text-sm text-admin-text">{user?.name || 'Utilisateur'}</p>
+                  <p className="text-xs text-admin-text-light">
+                    {user?.role === 'admin' ? 'Administrateur' : user?.role === 'teacher' ? 'Enseignant' : user?.role === 'parent' ? 'Parent' : 'Élève'}
+                  </p>
                 </div>
                 <Avatar className="w-12 h-12 border-2 border-admin-border">
                   <AvatarFallback className="bg-gradient-to-br from-admin-primary to-admin-accent-green text-white font-medium">
-                    MA
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
                   </AvatarFallback>
                 </Avatar>
               </div>

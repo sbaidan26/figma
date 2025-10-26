@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StudentDashboardProps {
   onLogout: () => void;
@@ -44,6 +45,7 @@ interface AppSection {
 }
 
 export function StudentDashboard({ onLogout }: StudentDashboardProps) {
+  const { user } = useAuth();
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
 
@@ -233,7 +235,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                         <CartoonEmoji type="wave" className="w-10 h-10" />
                       </div>
                       <div>
-                        <h2 className="font-bold">Bonjour Marie !</h2>
+                        <h2 className="font-bold">Bonjour {user?.name || 'Élève'} !</h2>
                         <p className="text-muted-foreground">
                           Bienvenue dans ton espace personnel
                         </p>

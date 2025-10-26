@@ -24,6 +24,7 @@ import {
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -49,6 +50,7 @@ interface AppSection {
 }
 
 export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
+  const { user } = useAuth();
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [selectedCourse, setSelectedCourse] = useState<{ id: number; name: string; time: string } | null>(null);
@@ -277,7 +279,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                         <CartoonEmoji type="wave" className="w-10 h-10" />
                       </div>
                       <div>
-                        <h2 className="font-bold">Bonjour Mme Benali !</h2>
+                        <h2 className="font-bold">Bonjour {user?.name || 'Enseignant'} !</h2>
                         <p className="text-muted-foreground">
                           Bienvenue dans votre espace enseignant
                         </p>
