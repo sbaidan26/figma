@@ -1,122 +1,139 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { CheckCircle, Clock, User } from 'lucide-react';
+import { CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { CartoonEmoji } from './CartoonEmoji';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../utils/supabase/client';
+import { toast } from 'sonner';
 
 interface Signature {
-  parentName: string;
-  signedAt: string;
+  id: string;
+  parent_id: string;
+  parent_name: string;
+  signed_at: string;
 }
 
-interface LiaisonMessage {
-  id: number;
-  author: string;
-  authorRole: 'teacher' | 'admin' | 'director';
-  date: string;
-  time: string;
+interface LiaisonEntry {
+  id: string;
   title: string;
   content: string;
-  signatures: Signature[];
-  requiresSignature: boolean;
+  type: 'note' | 'information' | 'event' | 'authorization';
+  created_by: string;
+  created_by_name: string;
+  author_role: 'teacher' | 'admin' | 'director';
+  class_id: string | null;
+  requires_signature: boolean;
+  created_at: string;
+  updated_at: string;
+  signatures?: Signature[];
 }
 
-const mockMessages: LiaisonMessage[] = [
-  {
-    id: 1,
-    author: 'Mme Benali',
-    authorRole: 'teacher',
-    date: '19 Oct 2025',
-    time: '14:30',
-    title: 'Sortie scolaire au Musée des Sciences',
-    content: 'Chers parents, nous organisons une sortie pédagogique au Musée des Sciences le jeudi 25 octobre. Départ à 9h, retour prévu à 16h. Le coût est de 5€ par élève. Merci de signer ce mot pour autoriser la participation de votre enfant.',
-    signatures: [
-      { parentName: 'M. Dupont', signedAt: '19 Oct 2025 à 15:45' }
-    ],
-    requiresSignature: true,
-  },
-  {
-    id: 2,
-    author: 'Direction',
-    authorRole: 'director',
-    date: '18 Oct 2025',
-    time: '10:00',
-    title: 'Réunion parents-professeurs',
-    content: 'La réunion parents-professeurs du premier trimestre aura lieu le vendredi 27 octobre de 17h à 20h. Vous recevrez votre créneau horaire par message dans les prochains jours.',
-    signatures: [
-      { parentName: 'M. Dupont', signedAt: '18 Oct 2025 à 12:30' },
-      { parentName: 'Mme Dupont', signedAt: '18 Oct 2025 à 18:15' }
-    ],
-    requiresSignature: true,
-  },
-  {
-    id: 3,
-    author: 'Administration',
-    authorRole: 'admin',
-    date: '17 Oct 2025',
-    time: '09:15',
-    title: 'Photo de classe 📸',
-    content: 'Les photos de classe seront prises le mardi 24 octobre. Merci de veiller à ce que les élèves portent une tenue soignée.',
-    signatures: [
-      { parentName: 'Mme Dupont', signedAt: '17 Oct 2025 à 20:00' }
-    ],
-    requiresSignature: true,
-  },
-  {
-    id: 4,
-    author: 'Mme Benali',
-    authorRole: 'teacher',
-    date: '16 Oct 2025',
-    time: '16:00',
-    title: 'Projet jardinage 🌱',
-    content: 'Notre projet jardinage démarre la semaine prochaine ! Les élèves apprendront à planter des graines et à observer la croissance des plantes. Si vous avez des pots ou des graines à donner, n\'hésitez pas !',
-    signatures: [],
-    requiresSignature: false,
-  },
-  {
-    id: 5,
-    author: 'Direction',
-    authorRole: 'director',
-    date: '15 Oct 2025',
-    time: '11:30',
-    title: 'Vacances de la Toussaint',
-    content: 'Les vacances de la Toussaint débuteront le samedi 21 octobre au soir. La reprise des cours est prévue le lundi 6 novembre à 8h30. Bonnes vacances à tous !',
-    signatures: [],
-    requiresSignature: false,
-  },
-];
-
 export function LiaisonFeed() {
-  const [messages, setMessages] = useState(mockMessages);
-  const currentParent = 'Mme Dupont'; // À récupérer du contexte utilisateur
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<LiaisonEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [signingId, setSigningId] = useState<string | null>(null);
 
-  const handleSign = (messageId: number) => {
-    setMessages(messages.map(msg => {
-      if (msg.id === messageId) {
-        const alreadySigned = msg.signatures.some(sig => sig.parentName === currentParent);
-        if (alreadySigned) return msg;
-        
-        return {
-          ...msg,
-          signatures: [
-            ...msg.signatures,
-            {
-              parentName: currentParent,
-              signedAt: new Date().toLocaleString('fr-FR', { 
-                day: 'numeric', 
-                month: 'short', 
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            }
-          ]
-        };
+  useEffect(() => {
+    fetchEntries();
+
+    const channel = supabase
+      .channel('liaison_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'liaison_entries' },
+        () => {
+          fetchEntries();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'liaison_signatures' },
+        () => {
+          fetchEntries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchEntries = async () => {
+    try {
+      const { data: entriesData, error: entriesError } = await supabase
+        .from('liaison_entries')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (entriesError) throw entriesError;
+
+      const entriesWithSignatures = await Promise.all(
+        (entriesData || []).map(async (entry) => {
+          const { data: signaturesData, error: signaturesError } = await supabase
+            .from('liaison_signatures')
+            .select('*')
+            .eq('liaison_entry_id', entry.id)
+            .order('signed_at', { ascending: false });
+
+          if (signaturesError) {
+            console.error('Error fetching signatures:', signaturesError);
+            return { ...entry, signatures: [] };
+          }
+
+          return {
+            ...entry,
+            signatures: signaturesData || []
+          };
+        })
+      );
+
+      setEntries(entriesWithSignatures);
+    } catch (error) {
+      console.error('Error fetching liaison entries:', error);
+      toast.error('Erreur lors du chargement des messages');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSign = async (entryId: string) => {
+    if (!user || user.role !== 'parent') {
+      toast.error('Seuls les parents peuvent signer les messages');
+      return;
+    }
+
+    setSigningId(entryId);
+
+    try {
+      const { error } = await supabase
+        .from('liaison_signatures')
+        .insert({
+          liaison_entry_id: entryId,
+          parent_id: user.id,
+          parent_name: user.name
+        });
+
+      if (error) {
+        if (error.code === '23505') {
+          toast.info('Vous avez déjà signé ce message');
+        } else {
+          throw error;
+        }
+      } else {
+        toast.success('Message signé avec succès');
+        fetchEntries();
       }
-      return msg;
-    }));
+    } catch (error) {
+      console.error('Error signing liaison entry:', error);
+      toast.error('Erreur lors de la signature');
+    } finally {
+      setSigningId(null);
+    }
   };
 
   const getAuthorIcon = (role: string) => {
@@ -137,13 +154,49 @@ export function LiaisonFeed() {
     }
   };
 
-  const isSignedByCurrentParent = (message: LiaisonMessage) => {
-    return message.signatures.some(sig => sig.parentName === currentParent);
+  const isSignedByCurrentParent = (entry: LiaisonEntry) => {
+    return entry.signatures?.some(sig => sig.parent_id === user?.id) || false;
   };
 
-  const isFullySigned = (message: LiaisonMessage) => {
-    return message.signatures.length >= 2;
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatSignatureDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const unsignedCount = entries.filter(
+    entry => entry.requires_signature && !isSignedByCurrentParent(entry)
+  ).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -159,129 +212,142 @@ export function LiaisonFeed() {
             </p>
           </div>
         </div>
-        <Badge className="bg-warning">
-          {messages.filter(m => m.requiresSignature && !isSignedByCurrentParent(m)).length} à signer
-        </Badge>
+        {user?.role === 'parent' && unsignedCount > 0 && (
+          <Badge className="bg-warning">
+            {unsignedCount} à signer
+          </Badge>
+        )}
       </div>
 
-      <div className="space-y-6 max-h-[calc(100vh-250px)] overflow-y-auto pr-2">
-        {messages.map((message) => {
-          const signedByCurrent = isSignedByCurrentParent(message);
-          const fullySigned = isFullySigned(message);
-          
-          return (
-            <Card key={message.id} className="overflow-hidden border-2 border-border/50 hover:shadow-lg transition-all">
-              {/* Message Header */}
-              <div className="bg-gradient-to-r from-muted/50 to-accent/30 p-4 border-b-2 border-border/50">
-                <div className="flex items-start gap-3">
-                  <Avatar className={`w-12 h-12 border-2 border-white shadow-md bg-gradient-to-br ${getAuthorColor(message.authorRole)}`}>
-                    <AvatarFallback className="text-white bg-transparent">
-                      <span className="text-xl">{getAuthorIcon(message.authorRole)}</span>
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="flex items-center gap-2">
-                          {message.title}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-muted-foreground">
-                            {message.author}
-                          </p>
-                          <span className="text-muted-foreground">•</span>
-                          <p className="text-muted-foreground">
-                            {message.date} à {message.time}
-                          </p>
+      {entries.length === 0 ? (
+        <Card className="p-8 text-center">
+          <p className="text-muted-foreground">Aucun message pour le moment</p>
+        </Card>
+      ) : (
+        <div className="space-y-6 max-h-[calc(100vh-250px)] overflow-y-auto pr-2">
+          {entries.map((entry) => {
+            const signedByCurrent = isSignedByCurrentParent(entry);
+            const signatureCount = entry.signatures?.length || 0;
+
+            return (
+              <Card key={entry.id} className="overflow-hidden border-2 border-border/50 hover:shadow-lg transition-all">
+                {/* Message Header */}
+                <div className="bg-gradient-to-r from-muted/50 to-accent/30 p-4 border-b-2 border-border/50">
+                  <div className="flex items-start gap-3">
+                    <Avatar className={`w-12 h-12 border-2 border-white shadow-md bg-gradient-to-br ${getAuthorColor(entry.author_role)}`}>
+                      <AvatarFallback className="text-white bg-transparent">
+                        <span className="text-xl">{getAuthorIcon(entry.author_role)}</span>
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="flex items-center gap-2">
+                            {entry.title}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-muted-foreground">
+                              {entry.created_by_name}
+                            </p>
+                            <span className="text-muted-foreground">•</span>
+                            <p className="text-muted-foreground">
+                              {formatDate(entry.created_at)} à {formatTime(entry.created_at)}
+                            </p>
+                          </div>
                         </div>
+
+                        {entry.requires_signature && user?.role === 'parent' && (
+                          <Badge
+                            variant={signedByCurrent ? 'secondary' : 'destructive'}
+                            className="ml-2"
+                          >
+                            {signedByCurrent ? (
+                              <>✓ Signé par vous</>
+                            ) : (
+                              <>⏳ À signer</>
+                            )}
+                          </Badge>
+                        )}
                       </div>
-                      
-                      {message.requiresSignature && (
-                        <Badge 
-                          variant={fullySigned ? 'default' : signedByCurrent ? 'secondary' : 'destructive'}
-                          className="ml-2"
-                        >
-                          {fullySigned ? (
-                            <>✓ Signé par les 2 parents</>
-                          ) : signedByCurrent ? (
-                            <>✓ Signé par vous</>
-                          ) : (
-                            <>⏳ À signer</>
-                          )}
-                        </Badge>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Message Content */}
-              <div className="p-6">
-                <p className="mb-4 leading-relaxed">{message.content}</p>
+                {/* Message Content */}
+                <div className="p-6">
+                  <p className="mb-4 leading-relaxed">{entry.content}</p>
 
-                {/* Signatures Section */}
-                {message.requiresSignature && (
-                  <div className="mt-6 pt-4 border-t-2 border-border/50">
-                    <h4 className="mb-3 flex items-center gap-2">
-                      <span>✍️</span> Signatures des parents
-                    </h4>
-                    
-                    <div className="grid md:grid-cols-2 gap-3 mb-4">
-                      {message.signatures.map((sig, idx) => (
-                        <div 
-                          key={idx}
-                          className="flex items-center gap-2 p-3 bg-success/10 rounded-xl border border-success/30"
-                        >
-                          <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="truncate">{sig.parentName}</p>
-                            <p className="text-muted-foreground text-xs">{sig.signedAt}</p>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {message.signatures.length < 2 && (
-                        Array.from({ length: 2 - message.signatures.length }).map((_, idx) => (
-                          <div 
-                            key={`empty-${idx}`}
-                            className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl border border-border/50 border-dashed"
-                          >
-                            <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                            <div>
-                              <p className="text-muted-foreground">En attente de signature</p>
+                  {/* Signatures Section */}
+                  {entry.requires_signature && (
+                    <div className="mt-6 pt-4 border-t-2 border-border/50">
+                      <h4 className="mb-3 flex items-center gap-2">
+                        <span>✍️</span> Signatures des parents
+                      </h4>
+
+                      {signatureCount > 0 && (
+                        <div className="grid md:grid-cols-2 gap-3 mb-4">
+                          {entry.signatures!.map((sig) => (
+                            <div
+                              key={sig.id}
+                              className="flex items-center gap-2 p-3 bg-success/10 rounded-xl border border-success/30"
+                            >
+                              <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate">{sig.parent_name}</p>
+                                <p className="text-muted-foreground text-xs">
+                                  {formatSignatureDate(sig.signed_at)}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
+                      )}
+
+                      {signatureCount === 0 && (
+                        <div className="mb-4 p-3 bg-muted/50 rounded-xl border border-border/50 border-dashed">
+                          <Clock className="w-5 h-5 text-muted-foreground inline mr-2" />
+                          <span className="text-muted-foreground">Aucune signature pour le moment</span>
+                        </div>
+                      )}
+
+                      {/* Sign Button */}
+                      {user?.role === 'parent' && !signedByCurrent && (
+                        <Button
+                          onClick={() => handleSign(entry.id)}
+                          disabled={signingId === entry.id}
+                          className="w-full bg-success hover:bg-success/90"
+                        >
+                          {signingId === entry.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Signature en cours...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Signer ce message
+                            </>
+                          )}
+                        </Button>
                       )}
                     </div>
+                  )}
 
-                    {/* Sign Button */}
-                    {!signedByCurrent && (
-                      <Button 
-                        onClick={() => handleSign(message.id)}
-                        className="w-full bg-success hover:bg-success/90"
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Signer ce message
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {/* Info message for non-signature posts */}
-                {!message.requiresSignature && (
-                  <div className="mt-4 p-3 bg-muted/50 rounded-xl border border-border/50">
-                    <p className="text-muted-foreground text-sm flex items-center gap-2">
-                      <span>ℹ️</span> Message informatif - Aucune signature requise
-                    </p>
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                  {/* Info message for non-signature posts */}
+                  {!entry.requires_signature && (
+                    <div className="mt-4 p-3 bg-muted/50 rounded-xl border border-border/50">
+                      <p className="text-muted-foreground text-sm flex items-center gap-2">
+                        <span>ℹ️</span> Message informatif - Aucune signature requise
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
