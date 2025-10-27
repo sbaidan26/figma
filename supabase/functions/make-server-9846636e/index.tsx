@@ -836,11 +836,76 @@ app.get("/make-server-9846636e/events", requireAuth, async (c) => {
   try {
     const events = await kv.getByPrefix('event:');
     const eventsList = events.map((e: any) => e.value);
-    
+
     return c.json({ events: eventsList });
   } catch (error) {
     console.log('Exception fetching events:', error);
     return c.json({ error: 'Failed to fetch events' }, 500);
+  }
+});
+
+// ============================================
+// PASSWORD RESET ROUTE
+// ============================================
+
+app.post("/make-server-9846636e/users/reset-password", requireAuth, async (c) => {
+  try {
+    const currentUser = c.get('user');
+    const { auth_user_id, new_password } = await c.req.json();
+
+    if (!auth_user_id || !new_password) {
+      return c.json({ error: 'Missing required fields: auth_user_id, new_password' }, 400);
+    }
+
+    // Check if current user is admin
+    const { data: currentUserData, error: currentUserError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('auth_user_id', currentUser.id)
+      .single();
+
+    if (currentUserError || !currentUserData) {
+      return c.json({ error: 'Failed to verify user permissions' }, 403);
+    }
+
+    if (currentUserData.role !== 'admin') {
+      return c.json({ error: 'Unauthorized: Only admins can reset passwords' }, 403);
+    }
+
+    // Verify target user exists
+    const { data: targetUser, error: targetError } = await supabaseAdmin
+      .from('users')
+      .select('name, role')
+      .eq('auth_user_id', auth_user_id)
+      .single();
+
+    if (targetError || !targetUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Admins cannot reset other admin passwords
+    if (targetUser.role === 'admin') {
+      return c.json({ error: 'Cannot reset password for admin users' }, 403);
+    }
+
+    // Reset password using Supabase Admin API
+    const { data: updateData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      auth_user_id,
+      { password: new_password }
+    );
+
+    if (updateError) {
+      console.log('Error resetting password:', updateError);
+      return c.json({ error: 'Failed to reset password' }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: `Password reset successfully for ${targetUser.name}`
+    });
+  } catch (error) {
+    console.log('Exception resetting password:', error);
+    return c.json({ error: 'Failed to reset password' }, 500);
   }
 });
 

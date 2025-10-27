@@ -30,9 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { UserPlus, Search, Edit, Trash2, Mail, Phone, Users, GraduationCap, Heart, MoreHorizontal, Filter } from 'lucide-react';
+import { UserPlus, Search, Edit, Trash2, Mail, Phone, Users, GraduationCap, Heart, MoreHorizontal, Filter, Key } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../utils/supabase/client';
+import { projectId } from '../utils/supabase/info';
+import { useAuth } from '../contexts/AuthContext';
 
 interface User {
   id: string;
@@ -50,13 +52,18 @@ interface User {
 }
 
 export function UserManagementView() {
+  const { session } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'student'>('student');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -211,6 +218,58 @@ export function UserManagementView() {
       toast.error('Erreur lors de la suppression de l\'utilisateur');
       console.error('Error deleting user:', error);
     }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword || !session) return;
+
+    if (newPassword.length < 6) {
+      toast.error('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
+      const response = await fetch(`${serverUrl}/users/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          auth_user_id: resetPasswordUser.auth_user_id,
+          new_password: newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reset password');
+      }
+
+      toast.success(`Mot de passe réinitialisé pour ${resetPasswordUser.name}`);
+      setIsResetPasswordDialogOpen(false);
+      setResetPasswordUser(null);
+      setNewPassword('');
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast.error(error.message || 'Erreur lors de la réinitialisation du mot de passe');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const openResetPasswordDialog = (user: User) => {
+    if (user.role === 'admin') {
+      toast.error('Impossible de réinitialiser le mot de passe d\'un administrateur');
+      return;
+    }
+    setResetPasswordUser(user);
+    setNewPassword('');
+    setIsResetPasswordDialogOpen(true);
   };
 
   const openEditDialog = (user: User) => {
@@ -487,6 +546,50 @@ export function UserManagementView() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
+              <DialogDescription>
+                Définissez un nouveau mot de passe pour {resetPasswordUser?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">Nouveau mot de passe</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  placeholder="Minimum 6 caractères"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-admin-text-light">
+                  Le mot de passe doit contenir au moins 6 caractères
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsResetPasswordDialogOpen(false)}
+                disabled={resettingPassword}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleResetPassword}
+                disabled={resettingPassword || !newPassword}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {resettingPassword ? 'Réinitialisation...' : 'Réinitialiser'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Search and Filters */}
@@ -607,6 +710,14 @@ export function UserManagementView() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 hover:bg-amber-100"
+                          onClick={() => openResetPasswordDialog(user)}
+                        >
+                          <Key className="w-4 h-4 text-amber-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 hover:bg-admin-danger/10"
                           onClick={() => handleDeleteUser(user.id, user.name)}
                         >
@@ -681,6 +792,14 @@ export function UserManagementView() {
                           onClick={() => openEditDialog(user)}
                         >
                           <Edit className="w-4 h-4 text-admin-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-amber-100"
+                          onClick={() => openResetPasswordDialog(user)}
+                        >
+                          <Key className="w-4 h-4 text-amber-600" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -761,6 +880,14 @@ export function UserManagementView() {
                           onClick={() => openEditDialog(user)}
                         >
                           <Edit className="w-4 h-4 text-admin-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-amber-100"
+                          onClick={() => openResetPasswordDialog(user)}
+                        >
+                          <Key className="w-4 h-4 text-amber-600" />
                         </Button>
                         <Button
                           variant="ghost"
