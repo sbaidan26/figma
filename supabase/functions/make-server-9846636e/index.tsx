@@ -845,6 +845,171 @@ app.get("/make-server-9846636e/events", requireAuth, async (c) => {
 });
 
 // ============================================
+// COMMUNICATIONS ROUTES
+// ============================================
+
+app.post("/make-server-9846636e/communications", requireAuth, async (c) => {
+  try {
+    const currentUser = c.get('user');
+    const { title, message, target, target_details, status, scheduled_date } = await c.req.json();
+
+    if (!title || !message || !target || !status) {
+      return c.json({ error: 'Missing required fields: title, message, target, status' }, 400);
+    }
+
+    const { data: currentUserData, error: currentUserError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('auth_user_id', currentUser.id)
+      .maybeSingle();
+
+    if (currentUserError || !currentUserData || currentUserData.role !== 'admin') {
+      return c.json({ error: 'Unauthorized: Only admins can create communications' }, 403);
+    }
+
+    let totalRecipients = 0;
+    if (status === 'sent' || status === 'scheduled') {
+      const { count } = await supabaseAdmin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', target === 'all' ? undefined : target === 'class' ? 'student' : target);
+
+      totalRecipients = count || 0;
+    }
+
+    const communicationData: any = {
+      title,
+      message,
+      target,
+      target_details: target_details || null,
+      status,
+      scheduled_date: scheduled_date || null,
+      created_by: currentUser.id,
+      total_recipients: totalRecipients,
+      sent_at: status === 'sent' ? new Date().toISOString() : null
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('communications')
+      .insert([communicationData])
+      .select()
+      .single();
+
+    if (error) {
+      console.log('Error creating communication:', error);
+      return c.json({ error: 'Failed to create communication' }, 500);
+    }
+
+    return c.json({ success: true, communication: data });
+  } catch (error) {
+    console.log('Exception creating communication:', error);
+    return c.json({ error: 'Failed to create communication' }, 500);
+  }
+});
+
+app.get("/make-server-9846636e/communications", requireAuth, async (c) => {
+  try {
+    const currentUser = c.get('user');
+
+    const { data: currentUserData, error: currentUserError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('auth_user_id', currentUser.id)
+      .maybeSingle();
+
+    if (currentUserError || !currentUserData) {
+      return c.json({ error: 'Failed to verify user permissions' }, 403);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('communications')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.log('Error fetching communications:', error);
+      return c.json({ error: 'Failed to fetch communications' }, 500);
+    }
+
+    return c.json({ success: true, communications: data || [] });
+  } catch (error) {
+    console.log('Exception fetching communications:', error);
+    return c.json({ error: 'Failed to fetch communications' }, 500);
+  }
+});
+
+app.put("/make-server-9846636e/communications/:id", requireAuth, async (c) => {
+  try {
+    const currentUser = c.get('user');
+    const commId = c.req.param('id');
+    const updates = await c.req.json();
+
+    const { data: currentUserData, error: currentUserError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('auth_user_id', currentUser.id)
+      .maybeSingle();
+
+    if (currentUserError || !currentUserData || currentUserData.role !== 'admin') {
+      return c.json({ error: 'Unauthorized: Only admins can update communications' }, 403);
+    }
+
+    if (updates.status === 'sent' && !updates.sent_at) {
+      updates.sent_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('communications')
+      .update(updates)
+      .eq('id', commId)
+      .select()
+      .single();
+
+    if (error) {
+      console.log('Error updating communication:', error);
+      return c.json({ error: 'Failed to update communication' }, 500);
+    }
+
+    return c.json({ success: true, communication: data });
+  } catch (error) {
+    console.log('Exception updating communication:', error);
+    return c.json({ error: 'Failed to update communication' }, 500);
+  }
+});
+
+app.delete("/make-server-9846636e/communications/:id", requireAuth, async (c) => {
+  try {
+    const currentUser = c.get('user');
+    const commId = c.req.param('id');
+
+    const { data: currentUserData, error: currentUserError } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('auth_user_id', currentUser.id)
+      .maybeSingle();
+
+    if (currentUserError || !currentUserData || currentUserData.role !== 'admin') {
+      return c.json({ error: 'Unauthorized: Only admins can delete communications' }, 403);
+    }
+
+    const { error } = await supabaseAdmin
+      .from('communications')
+      .delete()
+      .eq('id', commId);
+
+    if (error) {
+      console.log('Error deleting communication:', error);
+      return c.json({ error: 'Failed to delete communication' }, 500);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.log('Exception deleting communication:', error);
+    return c.json({ error: 'Failed to delete communication' }, 500);
+  }
+});
+
+// ============================================
 // PASSWORD RESET ROUTE
 // ============================================
 

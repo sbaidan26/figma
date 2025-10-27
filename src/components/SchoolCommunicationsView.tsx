@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -24,74 +24,145 @@ import {
 import { Checkbox } from './ui/checkbox';
 import { Megaphone, Send, Calendar, Eye, Edit, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { supabase } from '../utils/supabase/client';
+import { projectId } from '../utils/supabase/info';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Communication {
-  id: number;
+  id: string;
   title: string;
   message: string;
   target: 'all' | 'parents' | 'teachers' | 'class';
-  targetDetails?: string;
-  date: string;
+  target_details?: string;
+  created_at: string;
   status: 'draft' | 'sent' | 'scheduled';
-  scheduledDate?: string;
-  readCount?: number;
-  totalRecipients?: number;
+  scheduled_date?: string;
+  sent_at?: string;
+  read_count?: number;
+  total_recipients?: number;
+  created_by?: string;
 }
 
 export function SchoolCommunicationsView() {
+  const { session } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<'all' | 'parents' | 'teachers' | 'class'>('all');
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [communications, setCommunications] = useState<Communication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    title: '',
+    message: '',
+    scheduledDate: ''
+  });
 
-  const [communications] = useState<Communication[]>([
-    {
-      id: 1,
-      title: 'Réunion parents-professeurs',
-      message: 'La réunion annuelle se tiendra le 15 novembre à 18h. Votre présence est importante.',
-      target: 'parents',
-      date: '2024-10-15',
-      status: 'sent',
-      readCount: 45,
-      totalRecipients: 50,
-    },
-    {
-      id: 2,
-      title: 'Sortie scolaire au musée',
-      message: 'Les classes CM2-A et CM2-B visiteront le Musée d\'Histoire Naturelle le 20 novembre.',
-      target: 'class',
-      targetDetails: 'CM2-A, CM2-B',
-      date: '2024-10-18',
-      status: 'sent',
-      readCount: 38,
-      totalRecipients: 48,
-    },
-    {
-      id: 3,
-      title: 'Formation pédagogique',
-      message: 'Session de formation sur les nouvelles méthodes d\'enseignement le 25 octobre.',
-      target: 'teachers',
-      date: '2024-10-20',
-      status: 'scheduled',
-      scheduledDate: '2024-10-20',
-      totalRecipients: 15,
-    },
-    {
-      id: 4,
-      title: 'Vacances de la Toussaint',
-      message: 'L\'école sera fermée du 28 octobre au 5 novembre. Bonnes vacances à tous !',
-      target: 'all',
-      date: '2024-10-19',
-      status: 'draft',
-      totalRecipients: 250,
-    },
-  ]);
+  useEffect(() => {
+    fetchCommunications();
+  }, []);
 
-  const handleCreateCommunication = () => {
-    toast.success('Communication créée avec succès');
-    setIsCreateDialogOpen(false);
+  const fetchCommunications = async () => {
+    if (!session) return;
+
+    try {
+      setLoading(true);
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
+      const response = await fetch(`${serverUrl}/communications`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setCommunications(data.communications);
+      }
+    } catch (error: any) {
+      console.error('Error fetching communications:', error);
+      toast.error('Erreur lors du chargement des communications');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteCommunication = (title: string) => {
-    toast.success(`"${title}" a été supprimée`);
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      message: '',
+      scheduledDate: ''
+    });
+    setSelectedTarget('all');
+    setSelectedClasses([]);
+  };
+
+  const handleCreateCommunication = async (asDraft: boolean = false) => {
+    if (!session) return;
+
+    if (!formData.title || !formData.message) {
+      toast.error('Le titre et le message sont requis');
+      return;
+    }
+
+    try {
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
+      const status = asDraft ? 'draft' : formData.scheduledDate ? 'scheduled' : 'sent';
+
+      const response = await fetch(`${serverUrl}/communications`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          message: formData.message,
+          target: selectedTarget,
+          target_details: selectedTarget === 'class' ? selectedClasses.join(', ') : null,
+          status,
+          scheduled_date: formData.scheduledDate || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create communication');
+      }
+
+      toast.success(asDraft ? 'Brouillon enregistré' : status === 'sent' ? 'Communication envoyée avec succès' : 'Communication programmée');
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchCommunications();
+    } catch (error: any) {
+      console.error('Error creating communication:', error);
+      toast.error(error.message || 'Erreur lors de la création de la communication');
+    }
+  };
+
+  const handleDeleteCommunication = async (id: string, title: string) => {
+    if (!session) return;
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer "${title}" ?`)) return;
+
+    try {
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
+      const response = await fetch(`${serverUrl}/communications/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete communication');
+      }
+
+      toast.success(`"${title}" a été supprimée`);
+      fetchCommunications();
+    } catch (error: any) {
+      console.error('Error deleting communication:', error);
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const getStatusBadge = (status: Communication['status']) => {
@@ -131,6 +202,14 @@ export function SchoolCommunicationsView() {
     }
   };
 
+  const handleClassToggle = (className: string) => {
+    setSelectedClasses(prev =>
+      prev.includes(className)
+        ? prev.filter(c => c !== className)
+        : [...prev, className]
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -164,7 +243,12 @@ export function SchoolCommunicationsView() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Titre</Label>
-                <Input id="title" placeholder="Ex: Réunion parents-professeurs" />
+                <Input
+                  id="title"
+                  placeholder="Ex: Réunion parents-professeurs"
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                />
               </div>
 
               <div className="space-y-2">
@@ -174,6 +258,8 @@ export function SchoolCommunicationsView() {
                   placeholder="Rédigez votre message..."
                   rows={5}
                   className="resize-none"
+                  value={formData.message}
+                  onChange={(e) => setFormData({...formData, message: e.target.value})}
                 />
               </div>
 
@@ -198,7 +284,11 @@ export function SchoolCommunicationsView() {
                   <div className="grid grid-cols-2 gap-3 p-4 bg-muted/50 rounded-xl">
                     {['CM2-A', 'CM2-B', 'CM1-A', 'CE2-B'].map(className => (
                       <div key={className} className="flex items-center space-x-2">
-                        <Checkbox id={className} />
+                        <Checkbox
+                          id={className}
+                          checked={selectedClasses.includes(className)}
+                          onCheckedChange={() => handleClassToggle(className)}
+                        />
                         <Label htmlFor={className} className="cursor-pointer">
                           {className}
                         </Label>
@@ -210,16 +300,21 @@ export function SchoolCommunicationsView() {
 
               <div className="space-y-2">
                 <Label htmlFor="schedule">Programmer l'envoi (optionnel)</Label>
-                <Input id="schedule" type="datetime-local" />
+                <Input
+                  id="schedule"
+                  type="datetime-local"
+                  value={formData.scheduledDate}
+                  onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button variant="outline" onClick={() => handleCreateCommunication(true)}>
                 Enregistrer comme brouillon
               </Button>
-              <Button onClick={handleCreateCommunication} className="gap-2">
+              <Button onClick={() => handleCreateCommunication(false)} className="gap-2">
                 <Send className="w-4 h-4" />
-                Envoyer maintenant
+                {formData.scheduledDate ? 'Programmer' : 'Envoyer maintenant'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -274,8 +369,17 @@ export function SchoolCommunicationsView() {
       {/* Communications List */}
       <div className="space-y-4">
         <h3>Toutes les communications</h3>
-        
-        {communications.map(comm => (
+
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Chargement...</p>
+          </div>
+        ) : communications.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Aucune communication pour le moment</p>
+          </div>
+        ) : (
+          communications.map(comm => (
           <div
             key={comm.id}
             className="bg-white rounded-2xl p-5 border-2 border-border/50 hover:border-primary/50 transition-all"
@@ -297,20 +401,20 @@ export function SchoolCommunicationsView() {
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        {getTargetLabel(comm.target, comm.targetDetails)}
+                        {getTargetLabel(comm.target, comm.target_details)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        {new Date(comm.date).toLocaleDateString('fr-FR')}
+                        {new Date(comm.created_at).toLocaleDateString('fr-FR')}
                       </span>
                     </div>
-                    {comm.status === 'sent' && comm.readCount !== undefined && (
+                    {comm.status === 'sent' && comm.read_count !== undefined && (
                       <div className="flex items-center gap-2">
                         <Eye className="w-4 h-4 text-muted-foreground" />
                         <span className="text-muted-foreground">
-                          {comm.readCount}/{comm.totalRecipients} lectures
+                          {comm.read_count}/{comm.total_recipients} lectures
                         </span>
                       </div>
                     )}
@@ -331,7 +435,7 @@ export function SchoolCommunicationsView() {
                   variant="ghost"
                   size="icon"
                   className="rounded-xl hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => handleDeleteCommunication(comm.title)}
+                  onClick={() => handleDeleteCommunication(comm.id, comm.title)}
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -339,24 +443,25 @@ export function SchoolCommunicationsView() {
             </div>
 
             {/* Progress bar for sent communications */}
-            {comm.status === 'sent' && comm.readCount !== undefined && comm.totalRecipients !== undefined && (
+            {comm.status === 'sent' && comm.read_count !== undefined && comm.total_recipients !== undefined && (
               <div className="mt-3 pt-3 border-t">
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="text-muted-foreground">Taux de lecture</span>
                   <span className="font-medium">
-                    {Math.round((comm.readCount / comm.totalRecipients) * 100)}%
+                    {Math.round((comm.read_count / comm.total_recipients) * 100)}%
                   </span>
                 </div>
                 <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all"
-                    style={{ width: `${(comm.readCount / comm.totalRecipients) * 100}%` }}
+                    style={{ width: `${(comm.read_count / comm.total_recipients) * 100}%` }}
                   />
                 </div>
               </div>
             )}
           </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
