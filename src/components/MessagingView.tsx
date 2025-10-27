@@ -63,6 +63,7 @@ interface User {
 
 export function MessagingView() {
   const { user } = useAuth();
+  const [dbUserId, setDbUserId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -76,7 +77,30 @@ export function MessagingView() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (user) {
+    const fetchDbUserId = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          setDbUserId(data.id);
+        }
+      } catch (error) {
+        console.error('Error fetching database user ID:', error);
+      }
+    };
+
+    fetchDbUserId();
+  }, [user]);
+
+  useEffect(() => {
+    if (user && dbUserId) {
       fetchConversations();
       fetchAvailableRecipients();
 
@@ -95,16 +119,16 @@ export function MessagingView() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user]);
+  }, [user, dbUserId]);
 
   const fetchAvailableRecipients = async () => {
-    if (!user) return;
+    if (!user || !dbUserId) return;
 
     try {
       let query = supabase
         .from('users')
         .select('id, name, role')
-        .neq('id', user.id)
+        .neq('id', dbUserId)
         .eq('status', 'active');
 
       if (user.role === 'parent') {
@@ -126,7 +150,7 @@ export function MessagingView() {
   };
 
   const fetchConversations = async () => {
-    if (!user) return;
+    if (!user || !dbUserId) return;
 
     try {
       setLoading(true);
@@ -134,7 +158,7 @@ export function MessagingView() {
       const { data: messages, error } = await supabase
         .from('messages')
         .select('*')
-        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        .or(`sender_id.eq.${dbUserId},recipient_id.eq.${dbUserId}`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -142,7 +166,7 @@ export function MessagingView() {
       const conversationsMap = new Map<string, Conversation>();
 
       messages?.forEach((msg: Message) => {
-        const isCurrentUserSender = msg.sender_id === user.id;
+        const isCurrentUserSender = msg.sender_id === dbUserId;
         const otherUserId = isCurrentUserSender ? msg.recipient_id : msg.sender_id;
         const otherUserName = isCurrentUserSender ? msg.recipient_name : msg.sender_name;
         const otherUserRole = isCurrentUserSender ? msg.recipient_role : msg.sender_role;
@@ -183,7 +207,7 @@ export function MessagingView() {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || !user) return;
+    if (!newMessage.trim() || !selectedConversation || !user || !dbUserId) return;
 
     setSending(true);
 
@@ -191,7 +215,7 @@ export function MessagingView() {
       const { error } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
+          sender_id: dbUserId,
           sender_name: user.name,
           sender_role: user.role,
           recipient_id: selectedConversation.other_user_id,
@@ -219,7 +243,7 @@ export function MessagingView() {
   };
 
   const handleCreateConversation = async () => {
-    if (!newRecipientId || !newConversationMessage.trim() || !user) return;
+    if (!newRecipientId || !newConversationMessage.trim() || !user || !dbUserId) return;
 
     setSending(true);
 
@@ -230,7 +254,7 @@ export function MessagingView() {
       const { error } = await supabase
         .from('messages')
         .insert({
-          sender_id: user.id,
+          sender_id: dbUserId,
           sender_name: user.name,
           sender_role: user.role,
           recipient_id: recipient.id,
@@ -260,7 +284,7 @@ export function MessagingView() {
     setSelectedConversation(conv);
 
     const unreadMessages = conv.messages.filter(
-      msg => msg.recipient_id === user?.id && !msg.read
+      msg => msg.recipient_id === dbUserId && !msg.read
     );
 
     if (unreadMessages.length > 0) {
