@@ -30,7 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { UserPlus, Search, Edit, Trash2, Mail, Phone, Users, GraduationCap, Heart, MoreHorizontal, Filter, Key } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from './ui/command';
+import { UserPlus, Search, Edit, Trash2, Mail, Phone, Users, GraduationCap, Heart, MoreHorizontal, Filter, Key, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../utils/supabase/client';
 import { projectId } from '../utils/supabase/info';
@@ -64,6 +67,8 @@ export function UserManagementView() {
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [students, setStudents] = useState<User[]>([]);
+  const [selectedChildren, setSelectedChildren] = useState<string[]>([]);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -91,6 +96,9 @@ export function UserManagementView() {
 
       if (error) throw error;
       setUsers(data || []);
+
+      const studentsList = (data || []).filter(u => u.role === 'student');
+      setStudents(studentsList);
     } catch (error: any) {
       toast.error('Erreur lors du chargement des utilisateurs');
       console.error('Error fetching users:', error);
@@ -118,6 +126,7 @@ export function UserManagementView() {
       children: '',
       status: 'active'
     });
+    setSelectedChildren([]);
     setEditingUser(null);
   };
 
@@ -140,8 +149,8 @@ export function UserManagementView() {
         userData.class = formData.class || null;
       }
 
-      if (selectedRole === 'parent' && formData.children) {
-        userData.children = formData.children.split(',').map(c => c.trim());
+      if (selectedRole === 'parent' && selectedChildren.length > 0) {
+        userData.children = selectedChildren;
       }
 
       const { error } = await supabase
@@ -180,8 +189,8 @@ export function UserManagementView() {
         userData.class = formData.class || null;
       }
 
-      if (editingUser.role === 'parent' && formData.children) {
-        userData.children = formData.children.split(',').map(c => c.trim());
+      if (editingUser.role === 'parent' && selectedChildren.length > 0) {
+        userData.children = selectedChildren;
       }
 
       const { error } = await supabase
@@ -283,6 +292,7 @@ export function UserManagementView() {
       children: user.children?.join(', ') || '',
       status: user.status
     });
+    setSelectedChildren(user.children || []);
     setIsEditDialogOpen(true);
   };
 
@@ -404,13 +414,55 @@ export function UserManagementView() {
 
               {selectedRole === 'parent' && (
                 <div className="space-y-2">
-                  <Label htmlFor="children">Enfants (séparés par des virgules)</Label>
-                  <Input
-                    id="children"
-                    placeholder="Ex: Yasmine Alaoui, Mehdi Alaoui"
-                    value={formData.children}
-                    onChange={(e) => setFormData({...formData, children: e.target.value})}
-                  />
+                  <Label>Enfants</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {selectedChildren.length > 0
+                          ? `${selectedChildren.length} enfant(s) sélectionné(s)`
+                          : "Sélectionner les enfants"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Rechercher un élève..." />
+                        <CommandEmpty>Aucun élève trouvé.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {students.map((student) => (
+                            <CommandItem
+                              key={student.id}
+                              value={student.name}
+                              onSelect={() => {
+                                setSelectedChildren(prev =>
+                                  prev.includes(student.id)
+                                    ? prev.filter(id => id !== student.id)
+                                    : [...prev, student.id]
+                                );
+                              }}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <Checkbox
+                                  checked={selectedChildren.includes(student.id)}
+                                  onCheckedChange={() => {}}
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium">{student.name}</div>
+                                  {student.class && (
+                                    <div className="text-xs text-muted-foreground">{student.class}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               )}
             </div>
@@ -513,13 +565,55 @@ export function UserManagementView() {
 
               {editingUser?.role === 'parent' && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-children">Enfants (séparés par des virgules)</Label>
-                  <Input
-                    id="edit-children"
-                    placeholder="Ex: Yasmine Alaoui, Mehdi Alaoui"
-                    value={formData.children}
-                    onChange={(e) => setFormData({...formData, children: e.target.value})}
-                  />
+                  <Label>Enfants</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {selectedChildren.length > 0
+                          ? `${selectedChildren.length} enfant(s) sélectionné(s)`
+                          : "Sélectionner les enfants"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Rechercher un élève..." />
+                        <CommandEmpty>Aucun élève trouvé.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-auto">
+                          {students.map((student) => (
+                            <CommandItem
+                              key={student.id}
+                              value={student.name}
+                              onSelect={() => {
+                                setSelectedChildren(prev =>
+                                  prev.includes(student.id)
+                                    ? prev.filter(id => id !== student.id)
+                                    : [...prev, student.id]
+                                );
+                              }}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <Checkbox
+                                  checked={selectedChildren.includes(student.id)}
+                                  onCheckedChange={() => {}}
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium">{student.name}</div>
+                                  {student.class && (
+                                    <div className="text-xs text-muted-foreground">{student.class}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               )}
 
