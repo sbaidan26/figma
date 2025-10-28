@@ -1,5 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
-import useEmblaCarousel from 'embla-carousel-react';
+import { useState } from 'react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -13,8 +12,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  RefreshCw,
-  ChevronLeft
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { projectId } from '../utils/supabase/info';
@@ -23,66 +21,6 @@ import { useAuth } from '../contexts/AuthContext';
 export function AdminDashboardHome() {
   const { session } = useAuth();
   const [syncing, setSyncing] = useState(false);
-
-  const [emblaRefStats, emblaApiStats] = useEmblaCarousel({ loop: false, align: 'start' });
-  const [canScrollPrevStats, setCanScrollPrevStats] = useState(false);
-  const [canScrollNextStats, setCanScrollNextStats] = useState(false);
-
-  const [emblaRefActivity, emblaApiActivity] = useEmblaCarousel({ loop: false, align: 'start' });
-  const [canScrollPrevActivity, setCanScrollPrevActivity] = useState(false);
-  const [canScrollNextActivity, setCanScrollNextActivity] = useState(false);
-
-  const [emblaRefLinks, emblaApiLinks] = useEmblaCarousel({ loop: false, align: 'start' });
-  const [canScrollPrevLinks, setCanScrollPrevLinks] = useState(false);
-  const [canScrollNextLinks, setCanScrollNextLinks] = useState(false);
-
-  const onSelectStats = useCallback(() => {
-    if (!emblaApiStats) return;
-    setCanScrollPrevStats(emblaApiStats.canScrollPrev());
-    setCanScrollNextStats(emblaApiStats.canScrollNext());
-  }, [emblaApiStats]);
-
-  const onSelectActivity = useCallback(() => {
-    if (!emblaApiActivity) return;
-    setCanScrollPrevActivity(emblaApiActivity.canScrollPrev());
-    setCanScrollNextActivity(emblaApiActivity.canScrollNext());
-  }, [emblaApiActivity]);
-
-  const onSelectLinks = useCallback(() => {
-    if (!emblaApiLinks) return;
-    setCanScrollPrevLinks(emblaApiLinks.canScrollPrev());
-    setCanScrollNextLinks(emblaApiLinks.canScrollNext());
-  }, [emblaApiLinks]);
-
-  useEffect(() => {
-    if (!emblaApiStats) return;
-    onSelectStats();
-    emblaApiStats.on('select', onSelectStats);
-    emblaApiStats.on('reInit', onSelectStats);
-  }, [emblaApiStats, onSelectStats]);
-
-  useEffect(() => {
-    if (!emblaApiActivity) return;
-    onSelectActivity();
-    emblaApiActivity.on('select', onSelectActivity);
-    emblaApiActivity.on('reInit', onSelectActivity);
-  }, [emblaApiActivity, onSelectActivity]);
-
-  useEffect(() => {
-    if (!emblaApiLinks) return;
-    onSelectLinks();
-    emblaApiLinks.on('select', onSelectLinks);
-    emblaApiLinks.on('reInit', onSelectLinks);
-  }, [emblaApiLinks, onSelectLinks]);
-
-  const scrollPrevStats = useCallback(() => emblaApiStats && emblaApiStats.scrollPrev(), [emblaApiStats]);
-  const scrollNextStats = useCallback(() => emblaApiStats && emblaApiStats.scrollNext(), [emblaApiStats]);
-
-  const scrollPrevActivity = useCallback(() => emblaApiActivity && emblaApiActivity.scrollPrev(), [emblaApiActivity]);
-  const scrollNextActivity = useCallback(() => emblaApiActivity && emblaApiActivity.scrollNext(), [emblaApiActivity]);
-
-  const scrollPrevLinks = useCallback(() => emblaApiLinks && emblaApiLinks.scrollPrev(), [emblaApiLinks]);
-  const scrollNextLinks = useCallback(() => emblaApiLinks && emblaApiLinks.scrollNext(), [emblaApiLinks]);
 
   const handleSyncUsers = async () => {
     if (!session) return;
@@ -238,53 +176,30 @@ export function AdminDashboardHome() {
         </div>
       </Card>
 
-      {/* Stats Carousel */}
-      <div className="relative">
-        <div className="overflow-hidden" ref={emblaRefStats}>
-          <div className="flex gap-4">
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <div key={index} className="flex-[0_0_100%] md:flex-[0_0_calc(50%-8px)] lg:flex-[0_0_calc(25%-12px)] min-w-0">
-                  <Card className="border-admin-border hover:shadow-md transition-shadow p-5 h-full">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <p className="text-sm text-admin-text-light mb-1">{stat.title}</p>
-                        <h3 className="text-3xl text-admin-text mb-1">{stat.value}</h3>
-                        <div className="flex items-center gap-1 text-xs">
-                          {stat.trend === 'up' && (
-                            <TrendingUp className="w-3 h-3 text-admin-accent-green" />
-                          )}
-                          <span className="text-admin-text-light">{stat.change}</span>
-                        </div>
-                      </div>
-                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
-                        <Icon className="w-6 h-6 text-white" />
-                      </div>
-                    </div>
-                  </Card>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={index} className="border-admin-border hover:shadow-md transition-shadow p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <p className="text-sm text-admin-text-light mb-1">{stat.title}</p>
+                  <h3 className="text-3xl text-admin-text mb-1">{stat.value}</h3>
+                  <div className="flex items-center gap-1 text-xs">
+                    {stat.trend === 'up' && (
+                      <TrendingUp className="w-3 h-3 text-admin-accent-green" />
+                    )}
+                    <span className="text-admin-text-light">{stat.change}</span>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {canScrollPrevStats && (
-          <button
-            onClick={scrollPrevStats}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        {canScrollNextStats && (
-          <button
-            onClick={scrollNextStats}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10 rotate-180"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Two Column Layout */}
@@ -297,54 +212,31 @@ export function AdminDashboardHome() {
               Tout voir
             </Button>
           </div>
-          <div className="relative">
-            <div className="overflow-hidden" ref={emblaRefActivity}>
-              <div className="flex gap-3">
-                {recentActivities.map(activity => (
-                  <div
-                    key={activity.id}
-                    className="flex-[0_0_100%] md:flex-[0_0_calc(50%-6px)] min-w-0"
-                  >
-                    <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-admin-bg transition-colors h-full border border-admin-border">
-                      <div className="w-10 h-10 rounded-full bg-admin-bg flex items-center justify-center shrink-0 mt-1">
-                        {activity.type === 'grade' && <CheckCircle2 className="w-5 h-5 text-admin-accent-green" />}
-                        {activity.type === 'liaison' && <Calendar className="w-5 h-5 text-admin-primary" />}
-                        {activity.type === 'user' && <Users className="w-5 h-5 text-admin-accent-orange" />}
-                        {activity.type === 'schedule' && <Clock className="w-5 h-5 text-purple-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-admin-text">
-                          <span className="font-medium">{activity.user}</span> {activity.action}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {activity.class}
-                          </Badge>
-                          <span className="text-xs text-admin-text-light">{activity.time}</span>
-                        </div>
-                      </div>
-                    </div>
+          <div className="space-y-3">
+            {recentActivities.map(activity => (
+              <div
+                key={activity.id}
+                className="flex items-start gap-3 p-3 rounded-xl hover:bg-admin-bg transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-admin-bg flex items-center justify-center shrink-0 mt-1">
+                  {activity.type === 'grade' && <CheckCircle2 className="w-5 h-5 text-admin-accent-green" />}
+                  {activity.type === 'liaison' && <Calendar className="w-5 h-5 text-admin-primary" />}
+                  {activity.type === 'user' && <Users className="w-5 h-5 text-admin-accent-orange" />}
+                  {activity.type === 'schedule' && <Clock className="w-5 h-5 text-purple-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-admin-text">
+                    <span className="font-medium">{activity.user}</span> {activity.action}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="text-xs">
+                      {activity.class}
+                    </Badge>
+                    <span className="text-xs text-admin-text-light">{activity.time}</span>
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
-
-            {canScrollPrevActivity && (
-              <button
-                onClick={scrollPrevActivity}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            )}
-            {canScrollNextActivity && (
-              <button
-                onClick={scrollNextActivity}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10 rotate-180"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            )}
+            ))}
           </div>
         </Card>
 
@@ -385,52 +277,23 @@ export function AdminDashboardHome() {
       {/* Quick Links */}
       <Card className="border-admin-border p-6">
         <h3 className="text-admin-text mb-4">Accès rapide</h3>
-        <div className="relative">
-          <div className="overflow-hidden" ref={emblaRefLinks}>
-            <div className="flex gap-3">
-              <div className="flex-[0_0_calc(50%-6px)] md:flex-[0_0_calc(25%-9px)] min-w-0">
-                <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary w-full">
-                  <Users className="w-5 h-5 text-admin-primary" />
-                  <span className="text-sm">Ajouter un élève</span>
-                </Button>
-              </div>
-              <div className="flex-[0_0_calc(50%-6px)] md:flex-[0_0_calc(25%-9px)] min-w-0">
-                <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary w-full">
-                  <GraduationCap className="w-5 h-5 text-admin-accent-green" />
-                  <span className="text-sm">Créer une classe</span>
-                </Button>
-              </div>
-              <div className="flex-[0_0_calc(50%-6px)] md:flex-[0_0_calc(25%-9px)] min-w-0">
-                <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary w-full">
-                  <Calendar className="w-5 h-5 text-admin-accent-orange" />
-                  <span className="text-sm">Envoyer un message</span>
-                </Button>
-              </div>
-              <div className="flex-[0_0_calc(50%-6px)] md:flex-[0_0_calc(25%-9px)] min-w-0">
-                <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary w-full">
-                  <TrendingUp className="w-5 h-5 text-purple-500" />
-                  <span className="text-sm">Voir les rapports</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {canScrollPrevLinks && (
-            <button
-              onClick={scrollPrevLinks}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
-          {canScrollNextLinks && (
-            <button
-              onClick={scrollNextLinks}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-all hover:scale-110 z-10 rotate-180"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+            <Users className="w-5 h-5 text-admin-primary" />
+            <span className="text-sm">Ajouter un élève</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+            <GraduationCap className="w-5 h-5 text-admin-accent-green" />
+            <span className="text-sm">Créer une classe</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+            <Calendar className="w-5 h-5 text-admin-accent-orange" />
+            <span className="text-sm">Envoyer un message</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+            <TrendingUp className="w-5 h-5 text-purple-500" />
+            <span className="text-sm">Voir les rapports</span>
+          </Button>
         </div>
       </Card>
     </div>

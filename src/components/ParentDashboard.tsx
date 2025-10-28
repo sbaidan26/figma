@@ -1,113 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ParentBackground } from './ParentBackground';
-
-interface SectionCarouselProps {
-  section: AppSection;
-  sectionIdx: number;
-  isSectionHovered: boolean;
-  hoveredApp: string | null;
-  setHoveredApp: (value: string | null) => void;
-  setCurrentView: (view: ViewType) => void;
-}
-
-function SectionCarousel({ section, sectionIdx, isSectionHovered, hoveredApp, setHoveredApp, setCurrentView }: SectionCarouselProps) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: 'start' });
-  const [canScrollPrev, setCanScrollPrev] = useState(false);
-  const [canScrollNext, setCanScrollNext] = useState(false);
-
-  const onSelect = useCallback(() => {
-    if (!emblaApi) return;
-    setCanScrollPrev(emblaApi.canScrollPrev());
-    setCanScrollNext(emblaApi.canScrollNext());
-  }, [emblaApi]);
-
-  useEffect(() => {
-    if (!emblaApi) return;
-    onSelect();
-    emblaApi.on('select', onSelect);
-    emblaApi.on('reInit', onSelect);
-  }, [emblaApi, onSelect]);
-
-  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
-  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
-
-  return (
-    <div className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all`}>
-      {/* Section Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
-          <CartoonEmoji type={section.emoji} className="w-10 h-10" />
-        </div>
-        <h3 className="text-xl font-bold">{section.title}</h3>
-      </div>
-
-      {/* Apps Carousel */}
-      <div className="relative">
-        <div className="overflow-hidden" ref={emblaRef}>
-          <div className="flex gap-4">
-            {section.apps.map((app, appIdx) => {
-              const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
-
-              return (
-                <div
-                  key={appIdx}
-                  className="flex-[0_0_100%] sm:flex-[0_0_calc(50%-8px)] lg:flex-[0_0_calc(33.333%-11px)] min-w-0"
-                >
-                  <button
-                    onClick={() => setCurrentView(app.view)}
-                    onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
-                    onMouseLeave={() => setHoveredApp(null)}
-                    className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group w-full`}
-                  >
-                    {/* Badge notification */}
-                    {app.badge && (
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
-                        {app.badge}
-                      </div>
-                    )}
-
-                    {/* Icon */}
-                    <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
-                      <AppIcon
-                        type={app.iconType}
-                        className="w-16 h-16"
-                        animated={true}
-                      />
-                    </div>
-
-                    {/* Title */}
-                    <span className="text-white text-center text-sm font-medium leading-tight">
-                      {app.title}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Navigation buttons */}
-        {canScrollPrev && (
-          <button
-            onClick={scrollPrev}
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        {canScrollNext && (
-          <button
-            onClick={scrollNext}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 import { CartoonEmoji } from './CartoonEmoji';
 import { AppIcon } from './AppIcon';
 import { LiaisonFeed } from './LiaisonFeed';
@@ -158,6 +51,25 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
   const { user } = useAuth();
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: 'start' });
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+  }, [emblaApi, onSelect]);
+
+  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
 
   const sections: AppSection[] = [
     {
@@ -322,23 +234,88 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
                     </div>
                   </div>
 
-                  {/* Sections avec carousels */}
-                  <div className="space-y-6">
-                    {sections.map((section, sectionIdx) => {
-                      const isSectionHovered = hoveredApp?.startsWith(`${sectionIdx}-`);
+                  {/* Carousel de sections */}
+                  <div className="relative">
+                    <div className="overflow-hidden" ref={emblaRef}>
+                      <div className="flex gap-6">
+                        {sections.map((section, sectionIdx) => {
+                          const isSectionHovered = hoveredApp?.startsWith(`${sectionIdx}-`);
 
-                      return (
-                        <SectionCarousel
-                          key={sectionIdx}
-                          section={section}
-                          sectionIdx={sectionIdx}
-                          isSectionHovered={isSectionHovered}
-                          hoveredApp={hoveredApp}
-                          setHoveredApp={setHoveredApp}
-                          setCurrentView={setCurrentView}
-                        />
-                      );
-                    })}
+                          return (
+                            <div
+                              key={sectionIdx}
+                              className="flex-[0_0_100%] min-w-0"
+                            >
+                              <div className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full`}>
+                                {/* Section Header */}
+                                <div className="flex items-center gap-3 mb-6">
+                                  <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
+                                    <CartoonEmoji type={section.emoji} className="w-10 h-10" />
+                                  </div>
+                                  <h3 className="text-xl font-bold">{section.title}</h3>
+                                </div>
+
+                                {/* Apps Grid */}
+                                <div className="grid grid-cols-3 gap-4">
+                                  {section.apps.map((app, appIdx) => {
+                                    const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
+
+                                    return (
+                                      <button
+                                        key={appIdx}
+                                        onClick={() => setCurrentView(app.view)}
+                                        onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
+                                        onMouseLeave={() => setHoveredApp(null)}
+                                        className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group`}
+                                      >
+                                        {/* Badge notification */}
+                                        {app.badge && (
+                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
+                                            {app.badge}
+                                          </div>
+                                        )}
+
+                                        {/* Icon */}
+                                        <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
+                                          <AppIcon
+                                            type={app.iconType}
+                                            className="w-16 h-16"
+                                            animated={true}
+                                          />
+                                        </div>
+
+                                        {/* Title */}
+                                        <span className="text-white text-center text-sm font-medium leading-tight">
+                                          {app.title}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Navigation buttons */}
+                    {canScrollPrev && (
+                      <button
+                        onClick={scrollPrev}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                    )}
+                    {canScrollNext && (
+                      <button
+                        onClick={scrollNext}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Section Événements */}
