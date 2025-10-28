@@ -13,33 +13,6 @@ interface LoginPageProps {
   onLogin?: (role: 'teacher' | 'parent' | 'student' | 'admin') => void;
 }
 
-// Comptes de démonstration
-const DEMO_ACCOUNTS = {
-  admin: {
-    email: 'admin@madrasati.com',
-    password: 'demo123',
-    name: 'Admin Principal',
-    role: 'admin' as const
-  },
-  teacher: {
-    email: 'prof.martin@madrasati.com',
-    password: 'demo123',
-    name: 'M. Martin',
-    role: 'teacher' as const
-  },
-  parent: {
-    email: 'parent.dupont@madrasati.com',
-    password: 'demo123',
-    name: 'Mme Dupont',
-    role: 'parent' as const
-  },
-  student: {
-    email: 'eleve.sarah@madrasati.com',
-    password: 'demo123',
-    name: 'Sarah Dupont',
-    role: 'student' as const
-  }
-};
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = useState('');
@@ -48,7 +21,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [name, setName] = useState('');
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'student' | 'admin'>('student');
   const [loading, setLoading] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
   const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,59 +61,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
-  // Connexion rapide avec compte démo
-  const handleDemoLogin = async (accountType: keyof typeof DEMO_ACCOUNTS) => {
-    setLoading(true);
-    const account = DEMO_ACCOUNTS[accountType];
-    
-    try {
-      // Essayer de se connecter d'abord
-      const { error: signInError } = await signIn(account.email, account.password);
-      
-      if (signInError) {
-        // Si le compte n'existe pas (Invalid credentials), le créer
-        if (signInError.includes('Invalid login credentials') || signInError.includes('Invalid')) {
-          toast.info('Création du compte de démonstration en cours...');
-          
-          const { error: signUpError } = await signUp(
-            account.email,
-            account.password,
-            account.name,
-            account.role
-          );
-          
-          if (signUpError) {
-            // Si le compte existe déjà, essayer de se reconnecter
-            if (signUpError.includes('already') || signUpError.includes('User already registered')) {
-              toast.info('Connexion au compte existant...');
-              const { error: retryError } = await signIn(account.email, account.password);
-              if (!retryError) {
-                toast.success(`Connecté en tant que ${account.name} !`);
-              } else {
-                toast.error(`Erreur: ${retryError}`);
-              }
-            } else {
-              toast.error(`Erreur lors de la création: ${signUpError}`);
-            }
-          } else {
-            // SignUp réussit et connecte automatiquement
-            toast.success(`Compte créé ! Connecté en tant que ${account.name} !`);
-          }
-        } else {
-          // Autre type d'erreur de connexion
-          toast.error(`Erreur de connexion: ${signInError}`);
-        }
-      } else {
-        // Connexion réussie du premier coup
-        toast.success(`Connecté en tant que ${account.name} !`);
-      }
-    } catch (error) {
-      console.error('Exception lors de la connexion démo:', error);
-      toast.error('Une erreur inattendue est survenue');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -305,7 +224,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 </Button>
               </div>
 
-              <div className="text-center pt-2 space-y-3">
+              <div className="text-center pt-2">
                 <button
                   type="button"
                   onClick={() => setIsSignUp(!isSignUp)}
@@ -314,77 +233,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 >
                   {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
                 </button>
-                
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDemo(!showDemo)}
-                    className="text-muted-foreground hover:text-foreground text-sm underline"
-                    disabled={loading}
-                  >
-                    {showDemo ? '✕ Fermer les comptes démo' : '🎯 Accès rapide - Comptes démo'}
-                  </button>
-                </div>
               </div>
             </form>
-
-            {/* Section des comptes démo */}
-            {showDemo && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-6 pt-6 border-t-2 border-border/50"
-              >
-                <p className="text-center text-sm text-muted-foreground mb-4">
-                  Connexion rapide avec comptes de démonstration
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => handleDemoLogin('admin')}
-                    disabled={loading}
-                    className="bg-gradient-to-br from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white rounded-2xl h-14"
-                  >
-                    <CartoonEmoji type="school" className="w-5 h-5 mr-2" animated={false} />
-                    Admin
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => handleDemoLogin('teacher')}
-                    disabled={loading}
-                    className="bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded-2xl h-14"
-                  >
-                    <CartoonEmoji type="teacher" className="w-5 h-5 mr-2" animated={false} />
-                    Enseignant
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => handleDemoLogin('parent')}
-                    disabled={loading}
-                    className="bg-gradient-to-br from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white rounded-2xl h-14"
-                  >
-                    <CartoonEmoji type="parent" className="w-5 h-5 mr-2" animated={false} />
-                    Parent
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => handleDemoLogin('student')}
-                    disabled={loading}
-                    className="bg-gradient-to-br from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white rounded-2xl h-14"
-                  >
-                    <CartoonEmoji type="student" className="w-5 h-5 mr-2" animated={false} />
-                    Élève
-                  </Button>
-                </div>
-                <p className="text-xs text-center text-muted-foreground mt-3">
-                  Email: demo@madrasati.com | Mot de passe: demo123
-                </p>
-              </motion.div>
-            )}
           </motion.div>
 
           {/* Décorations avec emojis cartoon */}
