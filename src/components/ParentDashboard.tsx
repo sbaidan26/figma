@@ -234,68 +234,55 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
                     </div>
                   </div>
 
-                  {/* Carousel de sections */}
+                  {/* Carousel d'applications - Une seule par slide */}
                   <div className="relative">
                     <div className="overflow-hidden" ref={emblaRef}>
                       <div className="flex gap-6">
-                        {sections.map((section, sectionIdx) => {
-                          const isSectionHovered = hoveredApp?.startsWith(`${sectionIdx}-`);
-
-                          return (
+                        {sections.flatMap((section) =>
+                          section.apps.map((app, appIdx) => (
                             <div
-                              key={sectionIdx}
+                              key={`${section.title}-${appIdx}`}
                               className="flex-[0_0_100%] min-w-0"
                             >
-                              <div className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full`}>
-                                {/* Section Header */}
-                                <div className="flex items-center gap-3 mb-6">
-                                  <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
-                                    <CartoonEmoji type={section.emoji} className="w-10 h-10" />
+                              <div className={`${section.bgColor} rounded-3xl p-12 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full flex flex-col items-center justify-center min-h-[400px]`}>
+                                {/* Section Badge */}
+                                <div className="mb-8 flex items-center gap-3 bg-white/50 backdrop-blur-sm rounded-full px-6 py-3">
+                                  <CartoonEmoji type={section.emoji} className="w-8 h-8" />
+                                  <span className="text-sm font-medium text-foreground/70">{section.title}</span>
+                                </div>
+
+                                {/* App Card */}
+                                <button
+                                  onClick={() => setCurrentView(app.view)}
+                                  onMouseEnter={() => setHoveredApp(app.view)}
+                                  onMouseLeave={() => setHoveredApp(null)}
+                                  className={`relative ${section.cardColor} rounded-3xl p-16 flex flex-col items-center justify-center gap-8 transition-all hover:scale-105 hover:shadow-2xl border-4 border-white/50 group w-full max-w-2xl`}
+                                >
+                                  {/* Badge notification */}
+                                  {app.badge && (
+                                    <div className="absolute -top-4 -right-4 w-16 h-16 bg-destructive text-white rounded-full flex items-center justify-center text-2xl font-bold shadow-lg z-10 animate-bounce">
+                                      {app.badge}
+                                    </div>
+                                  )}
+
+                                  {/* Icon */}
+                                  <div className={`transition-transform duration-300 ${hoveredApp === app.view ? 'scale-110' : 'scale-100'}`}>
+                                    <AppIcon
+                                      type={app.iconType}
+                                      className="w-32 h-32"
+                                      animated={true}
+                                    />
                                   </div>
-                                  <h3 className="text-xl font-bold">{section.title}</h3>
-                                </div>
 
-                                {/* Apps Grid */}
-                                <div className="grid grid-cols-3 gap-4">
-                                  {section.apps.map((app, appIdx) => {
-                                    const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
-
-                                    return (
-                                      <button
-                                        key={appIdx}
-                                        onClick={() => setCurrentView(app.view)}
-                                        onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
-                                        onMouseLeave={() => setHoveredApp(null)}
-                                        className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group`}
-                                      >
-                                        {/* Badge notification */}
-                                        {app.badge && (
-                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
-                                            {app.badge}
-                                          </div>
-                                        )}
-
-                                        {/* Icon */}
-                                        <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
-                                          <AppIcon
-                                            type={app.iconType}
-                                            className="w-16 h-16"
-                                            animated={true}
-                                          />
-                                        </div>
-
-                                        {/* Title */}
-                                        <span className="text-white text-center text-sm font-medium leading-tight">
-                                          {app.title}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                                  {/* Title */}
+                                  <h3 className="text-white text-center text-3xl font-bold leading-tight">
+                                    {app.title}
+                                  </h3>
+                                </button>
                               </div>
                             </div>
-                          );
-                        })}
+                          ))
+                        )}
                       </div>
                     </div>
 
@@ -303,17 +290,17 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
                     {canScrollPrev && (
                       <button
                         onClick={scrollPrev}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
                       >
-                        <ChevronLeft className="w-6 h-6" />
+                        <ChevronLeft className="w-8 h-8" />
                       </button>
                     )}
                     {canScrollNext && (
                       <button
                         onClick={scrollNext}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
                       >
-                        <ChevronLeft className="w-6 h-6" />
+                        <ChevronLeft className="w-8 h-8" />
                       </button>
                     )}
                   </div>
