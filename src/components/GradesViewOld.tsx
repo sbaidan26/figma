@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import {
+import { 
   Plus,
   Save,
   TrendingUp,
@@ -14,10 +14,11 @@ import {
   FileText,
   Calendar,
   Edit,
+  Trash2,
   Eye,
   Users,
   BarChart3,
-  Loader2
+  Download
 } from 'lucide-react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Button } from './ui/button';
@@ -25,15 +26,29 @@ import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Tabs, TabsList, TabsContent, TabsTrigger } from './ui/tabs';
-import { useGrades } from '../hooks/useGrades';
-import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'sonner';
+
+interface Student {
+  id: number;
+  name: string;
+  grades: Record<number, number | null>; // evaluationId -> grade
+}
+
+interface Evaluation {
+  id: number;
+  title: string;
+  subject: 'math' | 'french' | 'science' | 'history' | 'geography' | 'english';
+  type: 'test' | 'quiz' | 'homework' | 'project' | 'oral';
+  date: string;
+  maxGrade: number;
+  coefficient: number;
+  description?: string;
+}
 
 const subjectConfig = {
   math: { label: 'Mathématiques', icon: Calculator, color: 'bg-blue-500', emoji: '➕' },
@@ -52,85 +67,108 @@ const evaluationTypes = {
   oral: { label: 'Oral', color: 'bg-primary', icon: '🗣️' }
 };
 
-export function GradesView() {
-  const { user } = useAuth();
-  const {
-    evaluations,
-    grades,
-    students,
-    loading,
-    createEvaluation,
-    saveMultipleGrades,
-    getGradeForStudent,
-    getGradesForEvaluation
-  } = useGrades();
+const mockStudents: Student[] = [
+  { id: 1, name: "Amira Ben Ahmed", grades: { 1: 18, 2: 16, 3: 19, 4: 17.5 } },
+  { id: 2, name: "Youssef Mansouri", grades: { 1: 16, 2: 14, 3: 15, 4: 16 } },
+  { id: 3, name: "Salma Khalil", grades: { 1: 19, 2: 18.5, 3: 20, 4: 19 } },
+  { id: 4, name: "Omar Benjelloun", grades: { 1: 12, 2: 13, 3: 11, 4: 12.5 } },
+  { id: 5, name: "Leila Rachidi", grades: { 1: 17, 2: 16.5, 3: 17.5, 4: 18 } },
+  { id: 6, name: "Karim Alaoui", grades: { 1: 14, 2: 15, 3: 14.5, 4: 15 } },
+  { id: 7, name: "Nour El Idrissi", grades: { 1: 15, 2: 14, 3: 16, 4: 15.5 } },
+  { id: 8, name: "Adam Benjelloun", grades: { 1: 13, 2: 12, 3: 13.5, 4: 14 } },
+  { id: 9, name: "Yasmine Tazi", grades: { 1: 18, 2: 17, 3: 18.5, 4: 17 } },
+  { id: 10, name: "Mehdi Berrada", grades: { 1: 11, 2: 12, 3: 10, 4: 11.5 } },
+];
 
+const mockEvaluations: Evaluation[] = [
+  {
+    id: 1,
+    title: "Contrôle Chapitres 1-3",
+    subject: 'math',
+    type: 'test',
+    date: "15 Oct 2025",
+    maxGrade: 20,
+    coefficient: 3,
+    description: "Contrôle sur les fractions, décimaux et proportionnalité"
+  },
+  {
+    id: 2,
+    title: "Interrogation Tables",
+    subject: 'math',
+    type: 'quiz',
+    date: "10 Oct 2025",
+    maxGrade: 20,
+    coefficient: 1,
+    description: "Tables de multiplication et division"
+  },
+  {
+    id: 3,
+    title: "Projet Géométrie",
+    subject: 'math',
+    type: 'project',
+    date: "18 Oct 2025",
+    maxGrade: 20,
+    coefficient: 2,
+    description: "Construction de figures géométriques"
+  },
+  {
+    id: 4,
+    title: "Devoir Équations",
+    subject: 'math',
+    type: 'homework',
+    date: "12 Oct 2025",
+    maxGrade: 20,
+    coefficient: 1,
+    description: "Résolution d'équations du premier degré"
+  },
+];
+
+export function GradesView() {
+  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>(mockEvaluations);
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
-  const [selectedEvaluation, setSelectedEvaluation] = useState<string | null>(null);
+  const [selectedEvaluation, setSelectedEvaluation] = useState<number | null>(null);
   const [isAddingEvaluation, setIsAddingEvaluation] = useState(false);
-  const [editingGrades, setEditingGrades] = useState<Record<string, string>>({});
+  const [editingGrades, setEditingGrades] = useState<Record<number, string>>({});
   const [viewMode, setViewMode] = useState<'input' | 'overview'>('input');
-  const [savingGrades, setSavingGrades] = useState(false);
 
   const filteredEvaluations = evaluations.filter(e => e.subject === selectedSubject);
 
-  const updateGrade = (studentId: string, evaluationId: string, grade: string) => {
+  const updateGrade = (studentId: number, evaluationId: number, grade: string) => {
     setEditingGrades(prev => ({
       ...prev,
       [`${studentId}-${evaluationId}`]: grade
     }));
   };
 
-  const handleSaveGrades = async () => {
-    setSavingGrades(true);
-    try {
-      const gradesToSave = Object.entries(editingGrades).map(([key, value]) => {
-        const [studentId, evaluationId] = key.split('-');
-        const numValue = parseFloat(value);
-        return {
-          evaluationId,
-          studentId,
-          grade: isNaN(numValue) || value === '' ? null : numValue,
-        };
+  const saveGrades = () => {
+    const updatedStudents = students.map(student => {
+      const newGrades = { ...student.grades };
+      Object.entries(editingGrades).forEach(([key, value]) => {
+        const [studId, evalId] = key.split('-').map(Number);
+        if (studId === student.id) {
+          const numValue = parseFloat(value);
+          newGrades[evalId] = isNaN(numValue) ? null : numValue;
+        }
       });
-
-      await saveMultipleGrades(gradesToSave);
-      setEditingGrades({});
-    } catch (error) {
-      console.error('Error saving grades:', error);
-    } finally {
-      setSavingGrades(false);
-    }
+      return { ...student, grades: newGrades };
+    });
+    setStudents(updatedStudents);
+    setEditingGrades({});
   };
 
-  const calculateClassStats = (evaluationId: string) => {
-    const evalGrades = getGradesForEvaluation(evaluationId)
-      .map(g => g.grade)
-      .filter((g): g is number => g !== null && g !== undefined);
-
-    if (evalGrades.length === 0) {
-      return { average: null, min: null, max: null, count: 0 };
-    }
-
-    const average = evalGrades.reduce((sum, g) => sum + g, 0) / evalGrades.length;
-    const min = Math.min(...evalGrades);
-    const max = Math.max(...evalGrades);
-
-    return { average, min, max, count: evalGrades.length };
-  };
-
-  const calculateStudentAverage = (studentId: string, subject?: string) => {
-    const relevantEvals = subject
+  const calculateStudentAverage = (student: Student, subject?: string) => {
+    const relevantEvals = subject 
       ? evaluations.filter(e => e.subject === subject)
       : evaluations;
-
+    
     let totalPoints = 0;
     let totalCoefficients = 0;
 
     relevantEvals.forEach(evaluation => {
-      const gradeEntry = getGradeForStudent(evaluation.id, studentId);
-      if (gradeEntry && gradeEntry.grade !== null) {
-        totalPoints += (gradeEntry.grade / evaluation.max_grade) * 20 * evaluation.coefficient;
+      const grade = student.grades[evaluation.id];
+      if (grade !== null && grade !== undefined) {
+        totalPoints += (grade / evaluation.maxGrade) * 20 * evaluation.coefficient;
         totalCoefficients += evaluation.coefficient;
       }
     });
@@ -138,9 +176,25 @@ export function GradesView() {
     return totalCoefficients > 0 ? totalPoints / totalCoefficients : null;
   };
 
+  const calculateClassStats = (evaluationId: number) => {
+    const grades = students
+      .map(s => s.grades[evaluationId])
+      .filter((g): g is number => g !== null && g !== undefined);
+
+    if (grades.length === 0) {
+      return { average: null, min: null, max: null, count: 0 };
+    }
+
+    const average = grades.reduce((sum, g) => sum + g, 0) / grades.length;
+    const min = Math.min(...grades);
+    const max = Math.max(...grades);
+
+    return { average, min, max, count: grades.length };
+  };
+
   const calculateOverallClassAverage = () => {
     const averages = students
-      .map(s => calculateStudentAverage(s.id, selectedSubject))
+      .map(s => calculateStudentAverage(s, selectedSubject))
       .filter((avg): avg is number => avg !== null);
 
     if (averages.length === 0) return null;
@@ -159,47 +213,32 @@ export function GradesView() {
       title: '',
       type: 'test' as keyof typeof evaluationTypes,
       date: '',
-      max_grade: '20',
+      maxGrade: '20',
       coefficient: '1',
       description: ''
     });
-    const [creating, setCreating] = useState(false);
 
-    const handleCreate = async () => {
-      if (!user || !user.metadata?.classId) {
-        toast.error('Classe non définie');
-        return;
-      }
-
-      setCreating(true);
-      try {
-        await createEvaluation({
-          title: newEval.title,
-          subject: selectedSubject,
-          type: newEval.type,
-          date: newEval.date,
-          max_grade: parseFloat(newEval.max_grade),
-          coefficient: parseFloat(newEval.coefficient),
-          description: newEval.description || undefined,
-          class_id: user.metadata.classId,
-          teacher_id: user.id,
-          teacher_name: user.name,
-        });
-
-        setIsAddingEvaluation(false);
-        setNewEval({
-          title: '',
-          type: 'test',
-          date: '',
-          max_grade: '20',
-          coefficient: '1',
-          description: ''
-        });
-      } catch (error) {
-        console.error('Error creating evaluation:', error);
-      } finally {
-        setCreating(false);
-      }
+    const handleCreate = () => {
+      const evaluation: Evaluation = {
+        id: evaluations.length + 1,
+        title: newEval.title,
+        subject: selectedSubject as any,
+        type: newEval.type,
+        date: newEval.date,
+        maxGrade: parseFloat(newEval.maxGrade),
+        coefficient: parseFloat(newEval.coefficient),
+        description: newEval.description
+      };
+      setEvaluations([...evaluations, evaluation]);
+      setIsAddingEvaluation(false);
+      setNewEval({
+        title: '',
+        type: 'test',
+        date: '',
+        maxGrade: '20',
+        coefficient: '1',
+        description: ''
+      });
     };
 
     return (
@@ -255,8 +294,8 @@ export function GradesView() {
                 <Label>Note maximale</Label>
                 <Input
                   type="number"
-                  value={newEval.max_grade}
-                  onChange={(e) => setNewEval({ ...newEval, max_grade: e.target.value })}
+                  value={newEval.maxGrade}
+                  onChange={(e) => setNewEval({ ...newEval, maxGrade: e.target.value })}
                   className="rounded-xl mt-1"
                 />
               </div>
@@ -289,26 +328,16 @@ export function GradesView() {
                 variant="outline"
                 onClick={() => setIsAddingEvaluation(false)}
                 className="rounded-xl"
-                disabled={creating}
               >
                 Annuler
               </Button>
               <Button
                 onClick={handleCreate}
                 className="rounded-xl bg-gradient-to-br from-primary to-secondary"
-                disabled={!newEval.title || !newEval.date || creating}
+                disabled={!newEval.title || !newEval.date}
               >
-                {creating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Création...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer l'évaluation
-                  </>
-                )}
+                <Plus className="w-4 h-4 mr-2" />
+                Créer l'évaluation
               </Button>
             </div>
           </div>
@@ -337,12 +366,13 @@ export function GradesView() {
 
     return (
       <div className="space-y-6">
+        {/* En-tête évaluation */}
         <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-white/50 rounded-2xl">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Badge className={`${evaluationTypes[evaluation.type as keyof typeof evaluationTypes].color} text-white border-0`}>
-                  {evaluationTypes[evaluation.type as keyof typeof evaluationTypes].icon} {evaluationTypes[evaluation.type as keyof typeof evaluationTypes].label}
+                <Badge className={`${evaluationTypes[evaluation.type].color} text-white border-0`}>
+                  {evaluationTypes[evaluation.type].icon} {evaluationTypes[evaluation.type].label}
                 </Badge>
                 <Badge variant="outline">Coef. {evaluation.coefficient}</Badge>
               </div>
@@ -352,12 +382,13 @@ export function GradesView() {
             <div className="text-right">
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                 <Calendar className="w-4 h-4" />
-                {new Date(evaluation.date).toLocaleDateString('fr-FR')}
+                {evaluation.date}
               </div>
-              <p className="text-sm">Note sur {evaluation.max_grade}</p>
+              <p className="text-sm">Note sur {evaluation.maxGrade}</p>
             </div>
           </div>
 
+          {/* Statistiques */}
           <div className="grid grid-cols-4 gap-4 pt-4 border-t border-border">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">Notes saisies</p>
@@ -390,35 +421,27 @@ export function GradesView() {
           </div>
         </Card>
 
+        {/* Tableau de saisie */}
         <Card className="p-6 bg-white/90 backdrop-blur-sm border-2 border-white/50 rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <h4>Saisie des notes</h4>
             <Button
-              onClick={handleSaveGrades}
-              disabled={Object.keys(editingGrades).length === 0 || savingGrades}
+              onClick={saveGrades}
+              disabled={Object.keys(editingGrades).length === 0}
               className="rounded-xl bg-success"
             >
-              {savingGrades ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Enregistrement...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Enregistrer les modifications
-                </>
-              )}
+              <Save className="w-4 h-4 mr-2" />
+              Enregistrer les modifications
             </Button>
           </div>
 
           <div className="space-y-3">
             {students.map((student, index) => {
-              const gradeEntry = getGradeForStudent(selectedEvaluation, student.id);
+              const currentGrade = student.grades[selectedEvaluation];
               const editKey = `${student.id}-${selectedEvaluation}`;
-              const displayGrade = editingGrades[editKey] !== undefined
-                ? editingGrades[editKey]
-                : gradeEntry?.grade?.toString() || '';
+              const displayGrade = editingGrades[editKey] !== undefined 
+                ? editingGrades[editKey] 
+                : currentGrade?.toString() || '';
 
               return (
                 <motion.div
@@ -437,7 +460,7 @@ export function GradesView() {
                     <div>
                       <p className="font-medium">{student.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Moyenne générale: {calculateStudentAverage(student.id, selectedSubject)?.toFixed(2) || '-'}/20
+                        Moyenne générale: {calculateStudentAverage(student, selectedSubject)?.toFixed(2) || '-'}/20
                       </p>
                     </div>
                   </div>
@@ -448,19 +471,19 @@ export function GradesView() {
                         type="number"
                         step="0.5"
                         min="0"
-                        max={evaluation.max_grade}
+                        max={evaluation.maxGrade}
                         value={displayGrade}
                         onChange={(e) => updateGrade(student.id, selectedEvaluation, e.target.value)}
                         placeholder="Note"
                         className="w-24 rounded-xl text-center"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        /{evaluation.max_grade}
+                        /{evaluation.maxGrade}
                       </span>
                     </div>
-                    {gradeEntry?.grade !== null && gradeEntry?.grade !== undefined && (
-                      <Badge className={`${getGradeColor(gradeEntry.grade, evaluation.max_grade)} bg-transparent border-0`}>
-                        {((gradeEntry.grade / evaluation.max_grade) * 100).toFixed(0)}%
+                    {currentGrade !== null && currentGrade !== undefined && (
+                      <Badge className={`${getGradeColor(currentGrade, evaluation.maxGrade)} bg-transparent border-0`}>
+                        {((currentGrade / evaluation.maxGrade) * 100).toFixed(0)}%
                       </Badge>
                     )}
                   </div>
@@ -478,15 +501,17 @@ export function GradesView() {
     const studentAverages = students
       .map(s => ({
         student: s,
-        average: calculateStudentAverage(s.id, selectedSubject)
+        average: calculateStudentAverage(s, selectedSubject)
       }))
       .filter(item => item.average !== null)
       .sort((a, b) => b.average! - a.average!);
 
     const bestStudent = studentAverages[0];
+    const worstStudent = studentAverages[studentAverages.length - 1];
 
     return (
       <div className="space-y-6">
+        {/* Statistiques globales */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="p-6 bg-gradient-to-br from-primary/20 to-primary/10 border-2 border-white/50 rounded-2xl">
             <div className="flex items-center justify-between mb-3">
@@ -524,14 +549,21 @@ export function GradesView() {
           </Card>
         </div>
 
+        {/* Classement des élèves */}
         <Card className="p-6 bg-white/90 backdrop-blur-sm border-2 border-white/50 rounded-2xl">
-          <h4 className="mb-4">Classement général - {subjectConfig[selectedSubject as keyof typeof subjectConfig].label}</h4>
+          <div className="flex items-center justify-between mb-4">
+            <h4>Classement général - {subjectConfig[selectedSubject as keyof typeof subjectConfig].label}</h4>
+            <Button variant="outline" size="sm" className="rounded-xl">
+              <Download className="w-4 h-4 mr-2" />
+              Exporter
+            </Button>
+          </div>
 
           <div className="space-y-2">
             {studentAverages.map((item, index) => {
               const percentage = (item.average! / 20) * 100;
               const isTop3 = index < 3;
-
+              
               return (
                 <motion.div
                   key={item.student.id}
@@ -583,16 +615,9 @@ export function GradesView() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
+      {/* En-tête */}
       <div className="flex items-center gap-4">
         <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
           <CartoonEmoji type="star" className="w-10 h-10" />
@@ -603,7 +628,7 @@ export function GradesView() {
             Saisir et suivre les notes de vos élèves
           </p>
         </div>
-        <Button
+        <Button 
           onClick={() => setIsAddingEvaluation(true)}
           className="rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg"
         >
@@ -612,6 +637,7 @@ export function GradesView() {
         </Button>
       </div>
 
+      {/* Sélecteur de matière */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 shadow-md">
         <Label className="mb-2 block">Matière</Label>
         <Select value={selectedSubject} onValueChange={setSelectedSubject}>
@@ -628,6 +654,7 @@ export function GradesView() {
         </Select>
       </div>
 
+      {/* Tabs Saisie / Vue d'ensemble */}
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
         <TabsList className="grid w-full grid-cols-2 max-w-md">
           <TabsTrigger value="input" className="rounded-xl">
@@ -642,6 +669,7 @@ export function GradesView() {
 
         <TabsContent value="input" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Liste des évaluations */}
             <div className="lg:col-span-1 space-y-3">
               <h4>Évaluations</h4>
               {filteredEvaluations.length === 0 ? (
@@ -653,8 +681,8 @@ export function GradesView() {
               ) : (
                 filteredEvaluations.map((evaluation) => {
                   const stats = calculateClassStats(evaluation.id);
-                  const typeConfig = evaluationTypes[evaluation.type as keyof typeof evaluationTypes];
-
+                  const typeConfig = evaluationTypes[evaluation.type];
+                  
                   return (
                     <motion.div
                       key={evaluation.id}
@@ -671,13 +699,13 @@ export function GradesView() {
                       >
                         <div className="flex items-start justify-between mb-2">
                           <Badge className={`${
-                            selectedEvaluation === evaluation.id
-                              ? 'bg-white/20 text-white'
+                            selectedEvaluation === evaluation.id 
+                              ? 'bg-white/20 text-white' 
                               : typeConfig.color + ' text-white'
                           } border-0`}>
                             {typeConfig.icon}
                           </Badge>
-                          <span className="text-xs opacity-70">{new Date(evaluation.date).toLocaleDateString('fr-FR')}</span>
+                          <span className="text-xs opacity-70">{evaluation.date}</span>
                         </div>
                         <h4 className={`mb-1 text-sm ${selectedEvaluation === evaluation.id ? 'text-white' : ''}`}>
                           {evaluation.title}
@@ -693,6 +721,7 @@ export function GradesView() {
               )}
             </div>
 
+            {/* Zone de saisie */}
             <div className="lg:col-span-3">
               <GradeInputView />
             </div>
