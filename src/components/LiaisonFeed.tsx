@@ -3,8 +3,9 @@ import { Card } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Plus } from 'lucide-react';
 import { CartoonEmoji } from './CartoonEmoji';
+import { LiaisonCreateModal } from './LiaisonCreateModal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../utils/supabase/client';
 import { toast } from 'sonner';
@@ -36,6 +37,9 @@ export function LiaisonFeed() {
   const [entries, setEntries] = useState<LiaisonEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingId, setSigningId] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  const canCreateEntries = user?.role === 'teacher' || user?.role === 'admin';
 
   useEffect(() => {
     fetchEntries();
@@ -212,11 +216,19 @@ export function LiaisonFeed() {
             </p>
           </div>
         </div>
-        {user?.role === 'parent' && unsignedCount > 0 && (
-          <Badge className="bg-warning">
-            {unsignedCount} à signer
-          </Badge>
-        )}
+        <div className="flex items-center gap-3">
+          {user?.role === 'parent' && unsignedCount > 0 && (
+            <Badge className="bg-warning">
+              {unsignedCount} à signer
+            </Badge>
+          )}
+          {canCreateEntries && (
+            <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nouveau message
+            </Button>
+          )}
+        </div>
       </div>
 
       {entries.length === 0 ? (
@@ -348,6 +360,12 @@ export function LiaisonFeed() {
           })}
         </div>
       )}
+
+      <LiaisonCreateModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onSuccess={fetchEntries}
+      />
     </div>
   );
 }
