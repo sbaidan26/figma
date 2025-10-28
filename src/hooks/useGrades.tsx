@@ -38,27 +38,51 @@ interface Student {
   email?: string;
 }
 
-export function useGrades() {
+export function useGrades(classId?: string) {
   const { user } = useAuth();
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userClassId, setUserClassId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      fetchData();
-      subscribeToChanges();
+      fetchUserClassId();
     }
   }, [user]);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      fetchData(effectiveClassId);
+      return subscribeToChanges();
+    } else {
+      setLoading(false);
+    }
+  }, [userClassId, classId]);
+
+  const fetchUserClassId = async () => {
+    if (!user || classId) return;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('class_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!error && data?.class_id) {
+      setUserClassId(data.class_id);
+    }
+  };
+
+  const fetchData = async (effectiveClassId: string) => {
     try {
       setLoading(true);
       await Promise.all([
-        fetchEvaluations(),
-        fetchGrades(),
-        fetchStudents(),
+        fetchEvaluations(effectiveClassId),
+        fetchGrades(effectiveClassId),
+        fetchStudents(effectiveClassId),
       ]);
     } catch (error) {
       console.error('Error fetching grades data:', error);
@@ -68,41 +92,35 @@ export function useGrades() {
     }
   };
 
-  const fetchEvaluations = async () => {
-    if (!user?.metadata?.classId) return;
-
+  const fetchEvaluations = async (effectiveClassId: string) => {
     const { data, error } = await supabase
       .from('evaluations')
       .select('*')
-      .eq('class_id', user.metadata.classId)
+      .eq('class_id', effectiveClassId)
       .order('date', { ascending: false });
 
     if (error) throw error;
     setEvaluations(data || []);
   };
 
-  const fetchGrades = async () => {
-    if (!user?.metadata?.classId) return;
-
+  const fetchGrades = async (effectiveClassId: string) => {
     const { data, error } = await supabase
       .from('grades')
       .select(`
         *,
         evaluation:evaluations!inner(class_id)
       `)
-      .eq('evaluation.class_id', user.metadata.classId);
+      .eq('evaluation.class_id', effectiveClassId);
 
     if (error) throw error;
     setGrades(data || []);
   };
 
-  const fetchStudents = async () => {
-    if (!user?.metadata?.classId) return;
-
+  const fetchStudents = async (effectiveClassId: string) => {
     const { data, error } = await supabase
       .from('users')
       .select('id, name, email')
-      .eq('class_id', user.metadata.classId)
+      .eq('class_id', effectiveClassId)
       .eq('role', 'student')
       .eq('status', 'active')
       .order('name');
@@ -117,7 +135,10 @@ export function useGrades() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'evaluations' },
-        () => fetchEvaluations()
+        () => {
+          const effectiveClassId = classId || userClassId;
+          if (effectiveClassId) fetchEvaluations(effectiveClassId);
+        }
       )
       .subscribe();
 
@@ -126,7 +147,10 @@ export function useGrades() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'grades' },
-        () => fetchGrades()
+        () => {
+          const effectiveClassId = classId || userClassId;
+          if (effectiveClassId) fetchGrades(effectiveClassId);
+        }
       )
       .subscribe();
 
@@ -147,7 +171,10 @@ export function useGrades() {
     }
 
     toast.success('Évaluation créée avec succès');
-    await fetchEvaluations();
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      await fetchEvaluations(effectiveClassId);
+    }
   };
 
   const updateEvaluation = async (id: string, data: Partial<Evaluation>) => {
@@ -162,7 +189,10 @@ export function useGrades() {
     }
 
     toast.success('Évaluation mise à jour');
-    await fetchEvaluations();
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      await fetchEvaluations(effectiveClassId);
+    }
   };
 
   const deleteEvaluation = async (id: string) => {
@@ -177,7 +207,10 @@ export function useGrades() {
     }
 
     toast.success('Évaluation supprimée');
-    await fetchEvaluations();
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      await fetchEvaluations(effectiveClassId);
+    }
   };
 
   const saveGrade = async (evaluationId: string, studentId: string, grade: number | null, comment?: string) => {
@@ -205,7 +238,10 @@ export function useGrades() {
       throw error;
     }
 
-    await fetchGrades();
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      await fetchGrades(effectiveClassId);
+    }
   };
 
   const saveMultipleGrades = async (gradesData: Array<{
@@ -239,7 +275,10 @@ export function useGrades() {
     }
 
     toast.success('Notes enregistrées avec succès');
-    await fetchGrades();
+    const effectiveClassId = classId || userClassId;
+    if (effectiveClassId) {
+      await fetchGrades(effectiveClassId);
+    }
   };
 
   const getGradeForStudent = (evaluationId: string, studentId: string): Grade | undefined => {
@@ -259,6 +298,7 @@ export function useGrades() {
     grades,
     students,
     loading,
+    userClassId,
     createEvaluation,
     updateEvaluation,
     deleteEvaluation,
@@ -267,6 +307,11 @@ export function useGrades() {
     getGradeForStudent,
     getGradesForEvaluation,
     getGradesForStudent,
-    refetch: fetchData,
+    refetch: () => {
+      const effectiveClassId = classId || userClassId;
+      if (effectiveClassId) {
+        return fetchData(effectiveClassId);
+      }
+    },
   };
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../utils/supabase/client';
 import { motion } from 'motion/react';
 import {
   Plus,
@@ -54,16 +55,21 @@ const evaluationTypes = {
 
 export function GradesView() {
   const { user } = useAuth();
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string; level: string }>>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+
   const {
     evaluations,
     grades,
     students,
     loading,
+    userClassId,
     createEvaluation,
     saveMultipleGrades,
     getGradeForStudent,
     getGradesForEvaluation
-  } = useGrades();
+  } = useGrades(selectedClassId || undefined);
 
   const [selectedSubject, setSelectedSubject] = useState<string>('math');
   const [selectedEvaluation, setSelectedEvaluation] = useState<string | null>(null);
@@ -71,6 +77,34 @@ export function GradesView() {
   const [editingGrades, setEditingGrades] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'input' | 'overview'>('input');
   const [savingGrades, setSavingGrades] = useState(false);
+
+  useEffect(() => {
+    fetchAvailableClasses();
+  }, []);
+
+  useEffect(() => {
+    if (userClassId) {
+      setSelectedClassId(userClassId);
+    }
+  }, [userClassId]);
+
+  const fetchAvailableClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, level')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setAvailableClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Erreur lors du chargement des classes');
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
 
   const filteredEvaluations = evaluations.filter(e => e.subject === selectedSubject);
 
@@ -166,8 +200,14 @@ export function GradesView() {
     const [creating, setCreating] = useState(false);
 
     const handleCreate = async () => {
-      if (!user || !user.metadata?.classId) {
-        toast.error('Classe non définie');
+      if (!user) {
+        toast.error('Utilisateur non connecté');
+        return;
+      }
+
+      const effectiveClassId = selectedClassId || userClassId;
+      if (!effectiveClassId) {
+        toast.error('Veuillez sélectionner une classe');
         return;
       }
 
@@ -181,7 +221,7 @@ export function GradesView() {
           max_grade: parseFloat(newEval.max_grade),
           coefficient: parseFloat(newEval.coefficient),
           description: newEval.description || undefined,
-          class_id: user.metadata.classId,
+          class_id: effectiveClassId,
           teacher_id: user.id,
           teacher_name: user.name,
         });
@@ -583,10 +623,55 @@ export function GradesView() {
     );
   };
 
-  if (loading) {
+  if (loading || loadingClasses) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!userClassId && availableClasses.length > 0 && !selectedClassId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+            <CartoonEmoji type="star" className="w-10 h-10" />
+          </div>
+          <div className="flex-1">
+            <h2>Notes & Évaluations</h2>
+            <p className="text-muted-foreground">
+              Sélectionnez une classe pour commencer
+            </p>
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="text-center mb-6">
+              <p className="text-lg font-medium mb-2">Choisissez une classe</p>
+              <p className="text-sm text-muted-foreground">
+                Vous devez sélectionner une classe pour gérer les évaluations et les notes
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Classe</Label>
+              <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Sélectionner une classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClasses.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name} - {cls.level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -606,11 +691,30 @@ export function GradesView() {
         <Button
           onClick={() => setIsAddingEvaluation(true)}
           className="rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg"
+          disabled={!selectedClassId && !userClassId}
         >
           <Plus className="w-4 h-4 mr-2" />
           Nouvelle évaluation
         </Button>
       </div>
+
+      {!userClassId && availableClasses.length > 0 && (
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 shadow-md">
+          <Label className="mb-2 block">Classe sélectionnée</Label>
+          <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="rounded-xl border-2">
+              <SelectValue placeholder="Sélectionner une classe" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableClasses.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name} - {cls.level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 shadow-md">
         <Label className="mb-2 block">Matière</Label>
