@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { ParentBackground } from './ParentBackground';
 import { CartoonEmoji } from './CartoonEmoji';
 import { AppIcon } from './AppIcon';
@@ -48,6 +49,25 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const { user } = useAuth();
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: 'start' });
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+  }, [emblaApi, onSelect]);
+
+  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
 
   const sections: AppSection[] = [
     {
@@ -130,81 +150,33 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     <div className="min-h-screen relative overflow-hidden">
       {/* Background animé */}
       <ParentBackground />
-      
-      <div className="relative z-10 flex min-h-screen">
-        {/* Compact Sidebar */}
-        <aside className="w-24 bg-white/90 backdrop-blur-sm border-r border-border/50 flex flex-col items-center py-6 gap-6 shadow-lg">
-          {/* Logo */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md">
-              <CartoonEmoji type="school" className="w-8 h-8" />
-            </div>
-            <span className="text-xs text-center px-2 opacity-60">Madrasati</span>
-          </div>
-          
-          {/* Navigation */}
-          <nav className="flex-1 flex flex-col gap-3 w-full px-3">
-            <button
-              onClick={() => setCurrentView('home')}
-              className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center transition-all hover:bg-primary/10 hover:scale-105 group ${
-                currentView === 'home' ? 'bg-primary/20' : ''
-              }`}
-            >
-              <Home 
-                className={`w-6 h-6 ${
-                  currentView === 'home' ? 'text-primary' : 'text-foreground'
-                }`}
-              />
-              <span className="text-xs mt-1 opacity-70">Accueil</span>
-            </button>
-          </nav>
 
-          {/* Bottom actions */}
-          <div className="flex flex-col gap-3 w-full px-3">
-            <button className="w-full aspect-square rounded-xl flex flex-col items-center justify-center transition-all hover:bg-warning/10 hover:scale-105 group">
-              <div className="relative">
-                <Bell className="w-6 h-6 text-warning" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full border-2 border-white" />
-              </div>
-              <span className="text-xs mt-1 opacity-70">Alertes</span>
-            </button>
-            
-            <button
-              onClick={onLogout}
-              className="w-full aspect-square rounded-xl flex flex-col items-center justify-center transition-all hover:bg-destructive/10 hover:scale-105 group"
-            >
-              <LogOut className="w-6 h-6 text-destructive" />
-            </button>
-          </div>
-        </aside>
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-sm border-b border-border/50 px-8 py-5 shadow-sm">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-4">
+              {currentView !== 'home' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView('home')}
+                  className="rounded-full -ml-2"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+              )}
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="bg-white/80 backdrop-blur-sm border-b border-border/50 px-8 py-5 shadow-sm">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <div className="flex items-center gap-4">
-                {currentView !== 'home' && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setCurrentView('home')}
-                    className="rounded-full -ml-2"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </Button>
-                )}
-                
-                <div className="flex items-center gap-3">
-                  <CartoonEmoji 
-                    type={currentView === 'home' ? 'door' : 'home'} 
-                    className="w-10 h-10" 
-                  />
-                  <div>
-                    <h1 className="leading-tight">{getViewTitle()}</h1>
-                    <p className="text-sm text-muted-foreground">
-                      {currentView === 'home' ? 'Bienvenue dans ton espace' : 'Retour à l\'accueil'}
-                    </p>
+              <div className="flex items-center gap-3">
+                <CartoonEmoji
+                  type={currentView === 'home' ? 'door' : 'home'}
+                  className="w-10 h-10"
+                />
+                <div>
+                  <h1 className="leading-tight">{getViewTitle()}</h1>
+                  <p className="text-sm text-muted-foreground">
+                    {currentView === 'home' ? 'Bienvenue dans ton espace' : 'Retour à l\'accueil'}
+                  </p>
                   </div>
                 </div>
               </div>
@@ -219,12 +191,20 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'E'}
                   </AvatarFallback>
                 </Avatar>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onLogout}
+                  className="rounded-full text-destructive hover:bg-destructive/10"
+                >
+                  <LogOut className="w-5 h-5" />
+                </Button>
               </div>
             </div>
           </header>
 
-          {/* Content Area */}
-          <main className="flex-1 overflow-y-auto p-8">
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-8">
             <div className="max-w-7xl mx-auto">
               {currentView === 'home' ? (
                 <div className="space-y-8">
@@ -243,64 +223,88 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                     </div>
                   </div>
 
-                  {/* Sections Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {sections.map((section, sectionIdx) => {
-                      const isSectionHovered = hoveredApp?.startsWith(`${sectionIdx}-`);
-                      
-                      return (
-                        <div
-                          key={sectionIdx}
-                          className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all`}
-                        >
-                          {/* Section Header */}
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
-                              <CartoonEmoji type={section.emoji} className="w-10 h-10" />
-                            </div>
-                            <h3 className="text-xl font-bold">{section.title}</h3>
-                          </div>
+                  {/* Carousel de sections */}
+                  <div className="relative">
+                    <div className="overflow-hidden" ref={emblaRef}>
+                      <div className="flex gap-6">
+                        {sections.map((section, sectionIdx) => {
+                          const isSectionHovered = hoveredApp?.startsWith(`${sectionIdx}-`);
 
-                          {/* Apps Grid */}
-                          <div className="grid grid-cols-3 gap-3">
-                            {section.apps.map((app, appIdx) => {
-                              const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
-                              
-                              return (
-                                <button
-                                  key={appIdx}
-                                  onClick={() => setCurrentView(app.view)}
-                                  onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
-                                  onMouseLeave={() => setHoveredApp(null)}
-                                  className={`relative ${section.cardColor} rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all hover:scale-110 hover:shadow-xl border-2 border-white/50 min-h-[120px] group`}
-                                >
-                                  {/* Badge notification */}
-                                  {app.badge && (
-                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
-                                      {app.badge}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Icon */}
-                                  <div className={`transition-transform duration-300 ${isHovered ? 'scale-150' : 'scale-100'}`}>
-                                    <AppIcon 
-                                      type={app.iconType}
-                                      className="w-14 h-14"
-                                      animated={true}
-                                    />
+                          return (
+                            <div
+                              key={sectionIdx}
+                              className="flex-[0_0_100%] min-w-0"
+                            >
+                              <div className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full`}>
+                                {/* Section Header */}
+                                <div className="flex items-center gap-3 mb-6">
+                                  <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
+                                    <CartoonEmoji type={section.emoji} className="w-10 h-10" />
                                   </div>
-                                  
-                                  {/* Title */}
-                                  <span className="text-white text-center text-sm font-medium leading-tight mt-1">
-                                    {app.title}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                  <h3 className="text-xl font-bold">{section.title}</h3>
+                                </div>
+
+                                {/* Apps Grid */}
+                                <div className="grid grid-cols-3 gap-4">
+                                  {section.apps.map((app, appIdx) => {
+                                    const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
+
+                                    return (
+                                      <button
+                                        key={appIdx}
+                                        onClick={() => setCurrentView(app.view)}
+                                        onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
+                                        onMouseLeave={() => setHoveredApp(null)}
+                                        className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group`}
+                                      >
+                                        {/* Badge notification */}
+                                        {app.badge && (
+                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
+                                            {app.badge}
+                                          </div>
+                                        )}
+
+                                        {/* Icon */}
+                                        <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
+                                          <AppIcon
+                                            type={app.iconType}
+                                            className="w-16 h-16"
+                                            animated={true}
+                                          />
+                                        </div>
+
+                                        {/* Title */}
+                                        <span className="text-white text-center text-sm font-medium leading-tight">
+                                          {app.title}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Navigation buttons */}
+                    {canScrollPrev && (
+                      <button
+                        onClick={scrollPrev}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                    )}
+                    {canScrollNext && (
+                      <button
+                        onClick={scrollNext}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Section Événements */}
@@ -312,8 +316,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                 </div>
               )}
             </div>
-          </main>
-        </div>
+        </main>
       </div>
     </div>
   );
