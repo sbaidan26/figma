@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
@@ -80,15 +80,15 @@ export function CurriculumProgressView() {
     calculateSubjectProgress,
   } = useCurriculum(selectedClassId || undefined);
 
-  useState(() => {
+  useEffect(() => {
     fetchAvailableClasses();
-  });
+  }, []);
 
-  useState(() => {
+  useEffect(() => {
     if (userClassId) {
       setSelectedClassId(userClassId);
     }
-  });
+  }, [userClassId]);
 
   const fetchAvailableClasses = async () => {
     try {
