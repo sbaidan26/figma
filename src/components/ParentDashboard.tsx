@@ -13,6 +13,7 @@ import { CourseResourcesView } from './CourseResourcesView';
 import { HomeworkView } from './HomeworkView';
 import { ScheduleView } from './ScheduleView';
 import { ParentGradesView } from './ParentGradesView';
+import { ClassPhotosView } from './ClassPhotosView';
 import {
   Home,
   Bell,
@@ -142,6 +143,8 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
         return <ScheduleView role="parent" />;
       case 'notes':
         return <ParentGradesView studentName="Amira Ben Ahmed" />;
+      case 'photos':
+        return <ClassPhotosView />;
       default:
         return (
           <div className="text-center py-12">

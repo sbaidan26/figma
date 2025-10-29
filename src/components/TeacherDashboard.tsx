@@ -16,6 +16,7 @@ import { ScheduleView } from './ScheduleView';
 import { GradesView } from './GradesView';
 import { TeacherLoungeView } from './TeacherLoungeView';
 import { CurriculumProgressView } from './CurriculumProgressView';
+import { ClassPhotosView } from './ClassPhotosView';
 import {
   Home,
   Bell,
@@ -175,6 +176,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
         return <CurriculumProgressView />;
       case 'teacher-space':
         return <TeacherLoungeView />;
+      case 'photos':
+        return <ClassPhotosView />;
       default:
         return (
           <div className="text-center py-12">
