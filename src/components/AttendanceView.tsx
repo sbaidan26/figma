@@ -1,18 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
 import {
   CheckCircle2,
   XCircle,
   Clock,
-  ArrowLeft,
   Search,
-  Send,
-  AlertCircle,
+  Plus,
+  Calendar as CalendarIcon,
+  Loader2,
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
 import { CartoonEmoji } from './CartoonEmoji';
 import {
@@ -23,336 +25,550 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { useAttendance } from '../hooks/useAttendance';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../utils/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-interface Student {
-  id: number;
-  name: string;
-  parentEmail: string;
-  status?: 'present' | 'absent' | 'late';
+interface StudentStatus {
+  student_id: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+  arrival_time?: string;
+  notes?: string;
 }
 
-interface AttendanceViewProps {
-  courseId: number;
-  courseName: string;
-  courseTime: string;
-  onBack: () => void;
-}
-
-export function AttendanceView({ courseId, courseName, courseTime, onBack }: AttendanceViewProps) {
-  const [students, setStudents] = useState<Student[]>([
-    { id: 1, name: 'Alice Martin', parentEmail: 'parent.martin@email.com', status: undefined },
-    { id: 2, name: 'Bob Dubois', parentEmail: 'parent.dubois@email.com', status: undefined },
-    { id: 3, name: 'Clara Petit', parentEmail: 'parent.petit@email.com', status: undefined },
-    { id: 4, name: 'David Moreau', parentEmail: 'parent.moreau@email.com', status: undefined },
-    { id: 5, name: 'Emma Bernard', parentEmail: 'parent.bernard@email.com', status: undefined },
-    { id: 6, name: 'Félix Lambert', parentEmail: 'parent.lambert@email.com', status: undefined },
-    { id: 7, name: 'Gabriel Rousseau', parentEmail: 'parent.rousseau@email.com', status: undefined },
-    { id: 8, name: 'Hannah Lefebvre', parentEmail: 'parent.lefebvre@email.com', status: undefined },
-    { id: 9, name: 'Inès Garnier', parentEmail: 'parent.garnier@email.com', status: undefined },
-    { id: 10, name: 'Jules Faure', parentEmail: 'parent.faure@email.com', status: undefined },
-  ]);
-
+export function AttendanceView() {
+  const { user } = useAuth();
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string; level: string }>>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [isCreatingAttendance, setIsCreatingAttendance] = useState(false);
+  const [currentAttendanceId, setCurrentAttendanceId] = useState<string | null>(null);
+  const [studentStatuses, setStudentStatuses] = useState<Record<string, StudentStatus>>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showJustificationDialog, setShowJustificationDialog] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [justificationNote, setJustificationNote] = useState('');
+  const [courseName, setCourseName] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const updateStudentStatus = (studentId: number, status: 'present' | 'absent' | 'late') => {
-    setStudents(prev =>
-      prev.map(student =>
-        student.id === studentId ? { ...student, status } : student
-      )
-    );
+  const {
+    attendanceRecords,
+    students,
+    loading,
+    userClassId,
+    createAttendanceRecord,
+    saveAttendanceEntries,
+    getAttendanceStats,
+  } = useAttendance(selectedClassId || undefined);
+
+  useEffect(() => {
+    fetchAvailableClasses();
+  }, []);
+
+  useEffect(() => {
+    if (userClassId) {
+      setSelectedClassId(userClassId);
+    }
+  }, [userClassId]);
+
+  const fetchAvailableClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, level')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setAvailableClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Erreur lors du chargement des classes');
+    } finally {
+      setLoadingClasses(false);
+    }
   };
 
-  const sendJustificationRequest = (student: Student) => {
-    // Simulate sending email to parent
-    toast.success(`Demande de justification envoyée`, {
-      description: `Email envoyé à ${student.parentEmail}`,
-    });
-    
-    setShowJustificationDialog(false);
-    setSelectedStudent(null);
-    setJustificationNote('');
-  };
+  const handleCreateAttendance = async () => {
+    if (!courseName.trim()) {
+      toast.error('Veuillez entrer le nom du cours');
+      return;
+    }
 
-  const handleAbsent = (student: Student) => {
-    updateStudentStatus(student.id, 'absent');
-    setSelectedStudent(student);
-    setShowJustificationDialog(true);
-  };
+    const effectiveClassId = selectedClassId || userClassId;
+    if (!effectiveClassId) {
+      toast.error('Veuillez sélectionner une classe');
+      return;
+    }
 
-  const saveAttendance = () => {
-    setShowConfirmDialog(true);
-  };
-
-  const confirmSave = () => {
-    const absentStudents = students.filter(s => s.status === 'absent');
-    
-    // Send justification requests to all absent students
-    absentStudents.forEach(student => {
-      toast.info(`Demande envoyée à ${student.name}`, {
-        description: `Email envoyé à ${student.parentEmail}`,
+    try {
+      const record = await createAttendanceRecord({
+        date: new Date().toISOString().split('T')[0],
+        class_id: effectiveClassId,
+        course_name: courseName,
+        notes: '',
       });
-    });
 
-    toast.success('Appel enregistré avec succès', {
-      description: `${absentStudents.length} demande(s) de justification envoyée(s)`,
-    });
-    
-    setShowConfirmDialog(false);
-    setTimeout(() => onBack(), 1000);
+      if (record) {
+        setCurrentAttendanceId(record.id);
+        const initialStatuses: Record<string, StudentStatus> = {};
+        students.forEach(student => {
+          initialStatuses[student.id] = {
+            student_id: student.id,
+            status: 'present',
+          };
+        });
+        setStudentStatuses(initialStatuses);
+        setIsCreatingAttendance(false);
+        toast.success('Session d\'appel créée');
+      }
+    } catch (error) {
+      console.error('Error creating attendance:', error);
+    }
+  };
+
+  const updateStudentStatus = (studentId: string, status: 'present' | 'absent' | 'late' | 'excused') => {
+    setStudentStatuses(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        student_id: studentId,
+        status,
+      },
+    }));
+  };
+
+  const handleSaveAttendance = async () => {
+    if (!currentAttendanceId) {
+      toast.error('Aucune session d\'appel en cours');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const entries = Object.values(studentStatuses);
+      await saveAttendanceEntries(currentAttendanceId, entries);
+
+      setCurrentAttendanceId(null);
+      setStudentStatuses({});
+      setCourseName('');
+    } catch (error) {
+      console.error('Error saving attendance:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredStudents = students.filter(student =>
     student.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const presentCount = students.filter(s => s.status === 'present').length;
-  const absentCount = students.filter(s => s.status === 'absent').length;
-  const lateCount = students.filter(s => s.status === 'late').length;
+  const presentCount = Object.values(studentStatuses).filter(s => s.status === 'present').length;
+  const absentCount = Object.values(studentStatuses).filter(s => s.status === 'absent').length;
+  const lateCount = Object.values(studentStatuses).filter(s => s.status === 'late').length;
+  const excusedCount = Object.values(studentStatuses).filter(s => s.status === 'excused').length;
+
+  if (loading || loadingClasses) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!userClassId && availableClasses.length > 0 && !selectedClassId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+            <CartoonEmoji type="checkmark" className="w-10 h-10" />
+          </div>
+          <div className="flex-1">
+            <h2>Appel / Absences</h2>
+            <p className="text-muted-foreground">Sélectionnez une classe pour commencer</p>
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="text-center mb-6">
+              <p className="text-lg font-medium mb-2">Choisissez une classe</p>
+              <p className="text-sm text-muted-foreground">
+                Sélectionnez une classe pour gérer les présences
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Classe</Label>
+              <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Sélectionner une classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClasses.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name} - {cls.level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Retour
-        </Button>
-        <div className="flex-1">
-          <h2>Appel - {courseName}</h2>
-          <p className="text-muted-foreground">{courseTime}</p>
+        <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+          <CartoonEmoji type="checkmark" className="w-10 h-10" />
         </div>
+        <div className="flex-1">
+          <h2>Appel / Absences</h2>
+          <p className="text-muted-foreground">
+            Gérer les présences et absences
+          </p>
+        </div>
+        {!currentAttendanceId && user?.role === 'teacher' && (
+          <Button
+            onClick={() => setIsCreatingAttendance(true)}
+            className="rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nouvel appel
+          </Button>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground">Total</p>
-              <h3>{students.length}</h3>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-              {students.length}
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 bg-success/10 border-success/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground">Présents</p>
-              <h3 className="text-success">{presentCount}</h3>
-            </div>
-            <CheckCircle2 className="w-10 h-10 text-success" />
-          </div>
-        </Card>
-        <Card className="p-4 bg-destructive/10 border-destructive/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground">Absents</p>
-              <h3 className="text-destructive">{absentCount}</h3>
-            </div>
-            <XCircle className="w-10 h-10 text-destructive" />
-          </div>
-        </Card>
-        <Card className="p-4 bg-warning/10 border-warning/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground">Retards</p>
-              <h3 className="text-warning">{lateCount}</h3>
-            </div>
-            <Clock className="w-10 h-10 text-warning" />
-          </div>
-        </Card>
-      </div>
+      {!userClassId && availableClasses.length > 0 && (
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 shadow-md">
+          <Label className="mb-2 block">Classe sélectionnée</Label>
+          <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="rounded-xl border-2">
+              <SelectValue placeholder="Sélectionner une classe" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableClasses.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name} - {cls.level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher un élève..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Student List */}
-      <Card className="p-6">
-        <div className="space-y-2">
-          {filteredStudents.map((student) => (
-            <div
-              key={student.id}
-              className={`p-4 rounded-lg border-2 transition-all ${
-                student.status === 'present'
-                  ? 'border-success bg-success/5'
-                  : student.status === 'absent'
-                  ? 'border-destructive bg-destructive/5'
-                  : student.status === 'late'
-                  ? 'border-warning bg-warning/5'
-                  : 'border-muted hover:border-border'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1">
-                  <Avatar>
-                    <AvatarFallback className="bg-primary text-white">
-                      {student.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p>{student.name}</p>
-                    <p className="text-muted-foreground">{student.parentEmail}</p>
-                  </div>
+      {currentAttendanceId ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-2xl font-bold">{students.length}</p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {student.status && (
-                    <Badge
-                      variant={
-                        student.status === 'present'
-                          ? 'default'
-                          : student.status === 'absent'
-                          ? 'destructive'
-                          : 'secondary'
-                      }
-                      className={
-                        student.status === 'present'
-                          ? 'bg-success'
-                          : student.status === 'late'
-                          ? 'bg-warning'
-                          : ''
-                      }
-                    >
-                      {student.status === 'present'
-                        ? 'Présent'
-                        : student.status === 'absent'
-                        ? 'Absent'
-                        : 'Retard'}
-                    </Badge>
-                  )}
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant={student.status === 'present' ? 'default' : 'outline'}
-                      className={student.status === 'present' ? 'bg-success hover:bg-success/90' : ''}
-                      onClick={() => updateStudentStatus(student.id, 'present')}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={student.status === 'late' ? 'default' : 'outline'}
-                      className={student.status === 'late' ? 'bg-warning hover:bg-warning/90' : ''}
-                      onClick={() => updateStudentStatus(student.id, 'late')}
-                    >
-                      <Clock className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={student.status === 'absent' ? 'destructive' : 'outline'}
-                      onClick={() => handleAbsent(student)}
-                    >
-                      <XCircle className="w-4 h-4" />
-                    </Button>
-                  </div>
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-lg font-bold">
+                  {students.length}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+            </Card>
+            <Card className="p-4 bg-success/10 border-success/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-success">Présents</p>
+                  <p className="text-2xl font-bold text-success">{presentCount}</p>
+                </div>
+                <CheckCircle2 className="w-10 h-10 text-success" />
+              </div>
+            </Card>
+            <Card className="p-4 bg-destructive/10 border-destructive/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-destructive">Absents</p>
+                  <p className="text-2xl font-bold text-destructive">{absentCount}</p>
+                </div>
+                <XCircle className="w-10 h-10 text-destructive" />
+              </div>
+            </Card>
+            <Card className="p-4 bg-warning/10 border-warning/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-warning">Retards</p>
+                  <p className="text-2xl font-bold text-warning">{lateCount}</p>
+                </div>
+                <Clock className="w-10 h-10 text-warning" />
+              </div>
+            </Card>
+          </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={onBack}>
-          Annuler
-        </Button>
-        <Button
-          className="bg-primary"
-          onClick={saveAttendance}
-          disabled={students.every(s => !s.status)}
-        >
-          Enregistrer l'appel
-        </Button>
-      </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un élève..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 rounded-xl"
+            />
+          </div>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmer l'appel</DialogTitle>
-            <DialogDescription>
-              Vous êtes sur le point d'enregistrer l'appel pour {courseName}.
-              {absentCount > 0 && (
-                <div className="mt-4 p-4 bg-warning/10 border border-warning/20 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="text-warning">
-                        {absentCount} élève(s) absent(s) détecté(s)
-                      </p>
-                      <p className="text-muted-foreground mt-1">
-                        Une demande de justification sera automatiquement envoyée aux parents.
-                      </p>
+          <Card className="p-6">
+            <div className="space-y-2">
+              {filteredStudents.map((student) => {
+                const status = studentStatuses[student.id]?.status;
+                return (
+                  <div
+                    key={student.id}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      status === 'present'
+                        ? 'border-success bg-success/5'
+                        : status === 'absent'
+                        ? 'border-destructive bg-destructive/5'
+                        : status === 'late'
+                        ? 'border-warning bg-warning/5'
+                        : status === 'excused'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-muted hover:border-border'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Avatar>
+                          <AvatarFallback className="bg-primary text-white">
+                            {student.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{student.name}</p>
+                          {student.email && (
+                            <p className="text-sm text-muted-foreground">{student.email}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {status && (
+                          <Badge
+                            variant={
+                              status === 'present'
+                                ? 'default'
+                                : status === 'absent'
+                                ? 'destructive'
+                                : 'secondary'
+                            }
+                            className={
+                              status === 'present'
+                                ? 'bg-success'
+                                : status === 'late'
+                                ? 'bg-warning'
+                                : status === 'excused'
+                                ? 'bg-blue-500'
+                                : ''
+                            }
+                          >
+                            {status === 'present'
+                              ? 'Présent'
+                              : status === 'absent'
+                              ? 'Absent'
+                              : status === 'late'
+                              ? 'Retard'
+                              : 'Justifié'}
+                          </Badge>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={status === 'present' ? 'default' : 'outline'}
+                            className={status === 'present' ? 'bg-success hover:bg-success/90' : ''}
+                            onClick={() => updateStudentStatus(student.id, 'present')}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={status === 'late' ? 'default' : 'outline'}
+                            className={status === 'late' ? 'bg-warning hover:bg-warning/90' : ''}
+                            onClick={() => updateStudentStatus(student.id, 'late')}
+                          >
+                            <Clock className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={status === 'absent' ? 'destructive' : 'outline'}
+                            onClick={() => updateStudentStatus(student.id, 'absent')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+                );
+              })}
+            </div>
+          </Card>
+
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCurrentAttendanceId(null);
+                setStudentStatuses({});
+                setCourseName('');
+              }}
+              className="rounded-xl"
+            >
               Annuler
             </Button>
-            <Button onClick={confirmSave} className="bg-primary">
-              Confirmer
+            <Button
+              onClick={handleSaveAttendance}
+              disabled={saving}
+              className="rounded-xl bg-gradient-to-br from-primary to-secondary"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                'Enregistrer l\'appel'
+              )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 bg-gradient-to-br from-blue-100 to-blue-150 border-2 border-white/50 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-blue-700">Appels effectués</p>
+                  <p className="text-2xl font-bold text-blue-900">{attendanceRecords.length}</p>
+                </div>
+                <CalendarIcon className="w-8 h-8 text-blue-500" />
+              </div>
+            </Card>
 
-      {/* Justification Request Dialog */}
-      <Dialog open={showJustificationDialog} onOpenChange={setShowJustificationDialog}>
-        <DialogContent>
+            {attendanceRecords.length > 0 && (
+              <>
+                <Card className="p-4 bg-gradient-to-br from-success/20 to-success/10 border-2 border-white/50 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-success">Taux de présence</p>
+                      <p className="text-2xl font-bold text-success">
+                        {Math.round(
+                          (attendanceRecords.reduce((sum, record) => {
+                            const stats = getAttendanceStats(record.id);
+                            return sum + (stats.total > 0 ? (stats.present / stats.total) * 100 : 0);
+                          }, 0) / attendanceRecords.length)
+                        )}%
+                      </p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-success" />
+                  </div>
+                </Card>
+
+                <Card className="p-4 bg-gradient-to-br from-destructive/20 to-destructive/10 border-2 border-white/50 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-destructive">Absences totales</p>
+                      <p className="text-2xl font-bold text-destructive">
+                        {attendanceRecords.reduce((sum, record) => {
+                          const stats = getAttendanceStats(record.id);
+                          return sum + stats.absent;
+                        }, 0)}
+                      </p>
+                    </div>
+                    <TrendingDown className="w-8 h-8 text-destructive" />
+                  </div>
+                </Card>
+              </>
+            )}
+          </div>
+
+          <Card className="p-6">
+            <h3 className="mb-4">Historique des appels</h3>
+            {attendanceRecords.length > 0 ? (
+              <div className="space-y-3">
+                {attendanceRecords.slice(0, 10).map((record) => {
+                  const stats = getAttendanceStats(record.id);
+                  return (
+                    <div
+                      key={record.id}
+                      className="p-4 rounded-lg border-2 border-muted hover:border-border transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{record.course_name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(record.date).toLocaleDateString('fr-FR', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-success">{stats.present} présents</Badge>
+                            <Badge variant="destructive">{stats.absent} absents</Badge>
+                            {stats.late > 0 && (
+                              <Badge className="bg-warning">{stats.late} retards</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Aucun appel effectué pour le moment</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Cliquez sur "Nouvel appel" pour commencer
+                </p>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      <Dialog open={isCreatingAttendance} onOpenChange={setIsCreatingAttendance}>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Demande de justification</DialogTitle>
+            <DialogTitle>Nouvel appel</DialogTitle>
             <DialogDescription>
-              {selectedStudent && `${selectedStudent.name} est marqué(e) absent(e). Une demande de justification sera envoyée à ${selectedStudent.parentEmail}.`}
+              Créer une nouvelle session d'appel pour la classe
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-muted-foreground">Note optionnelle pour les parents</label>
-              <Textarea
-                placeholder="Ajoutez une note pour les parents..."
-                value={justificationNote}
-                onChange={(e) => setJustificationNote(e.target.value)}
-                rows={3}
+          <div className="space-y-4">
+            <div>
+              <Label>Nom du cours</Label>
+              <Input
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                placeholder="Ex: Mathématiques"
+                className="rounded-xl mt-1"
               />
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setShowJustificationDialog(false);
-                setSelectedStudent(null);
-                setJustificationNote('');
-              }}
+              onClick={() => setIsCreatingAttendance(false)}
+              className="rounded-xl"
             >
               Annuler
             </Button>
             <Button
-              onClick={() => selectedStudent && sendJustificationRequest(selectedStudent)}
-              className="bg-primary"
+              onClick={handleCreateAttendance}
+              className="rounded-xl bg-gradient-to-br from-primary to-secondary"
             >
-              <Send className="w-4 h-4 mr-2" />
-              Envoyer la demande
+              <Plus className="w-4 h-4 mr-2" />
+              Créer l'appel
             </Button>
           </DialogFooter>
         </DialogContent>
