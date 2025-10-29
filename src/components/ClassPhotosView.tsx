@@ -23,6 +23,7 @@ import { Card } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Switch } from './ui/switch';
 import { Avatar, AvatarFallback } from './ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useClassPhotos } from '../hooks/useClassPhotos';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -402,8 +403,25 @@ export function ClassPhotosView() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {!userClassId && availableClasses.length > 0 && (
+              <div>
+                <Label>Classe *</Label>
+                <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+                  <SelectTrigger className="rounded-xl mt-1">
+                    <SelectValue placeholder="Sélectionner une classe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableClasses.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name} - {cls.level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
-              <Label>Titre</Label>
+              <Label>Titre *</Label>
               <Input
                 value={albumForm.title}
                 onChange={(e) => setAlbumForm({ ...albumForm, title: e.target.value })}
