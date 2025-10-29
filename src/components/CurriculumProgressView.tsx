@@ -2,247 +2,596 @@ import { useState } from 'react';
 import { CartoonEmoji } from './CartoonEmoji';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { Checkbox } from './ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
-import { BookOpen, CheckCircle2, Circle } from 'lucide-react';
+import { Card } from './ui/card';
+import { Label } from './ui/label';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import {
+  BookOpen,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Loader2,
+  Calculator,
+  PenTool,
+  Beaker,
+  Globe,
+  Music,
+  Palette,
+  Edit,
+  Trash2,
+} from 'lucide-react';
+import { useCurriculum } from '../hooks/useCurriculum';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { supabase } from '../utils/supabase/client';
 
-interface CurriculumItem {
-  id: number;
-  title: string;
-  description: string;
-  completed: boolean;
-  weekNumber: number;
-}
+const subjectIcons: Record<string, any> = {
+  calculator: Calculator,
+  book: BookOpen,
+  science: Beaker,
+  globe: Globe,
+  music: Music,
+  art: Palette,
+};
 
-interface Subject {
-  id: string;
-  name: string;
-  icon: 'book' | 'calculator' | 'science' | 'globe' | 'art' | 'music';
-  color: string;
-  items: CurriculumItem[];
-}
+const subjectColors: Record<string, string> = {
+  math: 'from-blue-400 to-blue-500',
+  french: 'from-purple-400 to-purple-500',
+  science: 'from-green-400 to-green-500',
+  geography: 'from-amber-400 to-amber-500',
+  history: 'from-red-400 to-red-500',
+  english: 'from-pink-400 to-pink-500',
+  arabic: 'from-orange-400 to-orange-500',
+  music: 'from-indigo-400 to-indigo-500',
+  art: 'from-purple-400 to-purple-500',
+};
 
 export function CurriculumProgressView() {
-  const [subjects, setSubjects] = useState<Subject[]>([
-    {
-      id: 'math',
-      name: 'Mathématiques',
-      icon: 'calculator',
-      color: 'from-blue-400 to-blue-500',
-      items: [
-        { id: 1, title: 'Les nombres décimaux', description: 'Comparaison et opérations', completed: true, weekNumber: 1 },
-        { id: 2, title: 'Les fractions', description: 'Introduction aux fractions simples', completed: true, weekNumber: 3 },
-        { id: 3, title: 'La division', description: 'Division à deux chiffres', completed: true, weekNumber: 5 },
-        { id: 4, title: 'La géométrie plane', description: 'Triangles et quadrilatères', completed: false, weekNumber: 7 },
-        { id: 5, title: 'Les mesures', description: 'Unités de longueur et masse', completed: false, weekNumber: 9 },
-        { id: 6, title: 'Les pourcentages', description: 'Calcul de pourcentages simples', completed: false, weekNumber: 11 },
-      ],
-    },
-    {
-      id: 'french',
-      name: 'Français',
-      icon: 'book',
-      color: 'from-purple-400 to-purple-500',
-      items: [
-        { id: 1, title: 'La conjugaison', description: 'Présent, passé composé, imparfait', completed: true, weekNumber: 1 },
-        { id: 2, title: 'Les adjectifs', description: 'Accord des adjectifs qualificatifs', completed: true, weekNumber: 2 },
-        { id: 3, title: 'Le complément du nom', description: 'Identifier et utiliser', completed: true, weekNumber: 4 },
-        { id: 4, title: 'La proposition relative', description: 'Qui, que, dont, où', completed: false, weekNumber: 6 },
-        { id: 5, title: 'Le discours direct et indirect', description: 'Transformation des phrases', completed: false, weekNumber: 8 },
-        { id: 6, title: 'Les homophones', description: 'a/à, et/est, son/sont', completed: false, weekNumber: 10 },
-      ],
-    },
-    {
-      id: 'science',
-      name: 'Sciences',
-      icon: 'science',
-      color: 'from-green-400 to-green-500',
-      items: [
-        { id: 1, title: 'Le corps humain', description: 'Système digestif et respiratoire', completed: true, weekNumber: 1 },
-        { id: 2, title: 'L\'eau dans la nature', description: 'Cycle de l\'eau et états', completed: true, weekNumber: 3 },
-        { id: 3, title: 'Les volcans', description: 'Formation et éruptions', completed: false, weekNumber: 5 },
-        { id: 4, title: 'L\'électricité', description: 'Circuits simples', completed: false, weekNumber: 7 },
-        { id: 5, title: 'Les plantes', description: 'Photosynthèse et reproduction', completed: false, weekNumber: 9 },
-        { id: 6, title: 'Le système solaire', description: 'Planètes et satellites', completed: false, weekNumber: 11 },
-      ],
-    },
-    {
-      id: 'geography',
-      name: 'Géographie',
-      icon: 'globe',
-      color: 'from-amber-400 to-amber-500',
-      items: [
-        { id: 1, title: 'Les continents', description: 'Caractéristiques géographiques', completed: true, weekNumber: 2 },
-        { id: 2, title: 'Les climats', description: 'Zones climatiques du monde', completed: true, weekNumber: 4 },
-        { id: 3, title: 'Les villes et villages', description: 'Urbanisme et ruralité', completed: false, weekNumber: 6 },
-        { id: 4, title: 'Les ressources naturelles', description: 'Eau, forêts, minerais', completed: false, weekNumber: 8 },
-        { id: 5, title: 'Les transports', description: 'Moyens de transport et réseaux', completed: false, weekNumber: 10 },
-      ],
-    },
-  ]);
+  const { user } = useAuth();
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [availableClasses, setAvailableClasses] = useState<Array<{ id: string; name: string; level: string }>>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [isAddingTopic, setIsAddingTopic] = useState(false);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [editingTopic, setEditingTopic] = useState<any>(null);
+  const [topicForm, setTopicForm] = useState({
+    title: '',
+    description: '',
+    week_number: '',
+    duration_hours: '',
+  });
 
-  const toggleItemCompletion = (subjectId: string, itemId: number) => {
-    setSubjects(subjects.map(subject => {
-      if (subject.id === subjectId) {
-        return {
-          ...subject,
-          items: subject.items.map(item => 
-            item.id === itemId ? { ...item, completed: !item.completed } : item
-          ),
-        };
-      }
-      return subject;
-    }));
+  const {
+    subjects,
+    topics,
+    loading,
+    userClassId,
+    createTopic,
+    updateTopic,
+    deleteTopic,
+    updateProgress,
+    getTopicsForSubject,
+    getProgressForTopic,
+    calculateSubjectProgress,
+  } = useCurriculum(selectedClassId || undefined);
+
+  useState(() => {
+    fetchAvailableClasses();
+  });
+
+  useState(() => {
+    if (userClassId) {
+      setSelectedClassId(userClassId);
+    }
+  });
+
+  const fetchAvailableClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, level')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setAvailableClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Erreur lors du chargement des classes');
+    } finally {
+      setLoadingClasses(false);
+    }
   };
 
-  const calculateProgress = (items: CurriculumItem[]) => {
-    const completed = items.filter(item => item.completed).length;
-    return Math.round((completed / items.length) * 100);
+  const handleAddTopic = async () => {
+    if (!selectedSubjectId) {
+      toast.error('Veuillez sélectionner une matière');
+      return;
+    }
+
+    if (!topicForm.title.trim()) {
+      toast.error('Veuillez entrer un titre');
+      return;
+    }
+
+    try {
+      const subjectTopics = getTopicsForSubject(selectedSubjectId);
+      await createTopic({
+        subject_id: selectedSubjectId,
+        title: topicForm.title.trim(),
+        description: topicForm.description.trim() || undefined,
+        week_number: topicForm.week_number ? parseInt(topicForm.week_number) : undefined,
+        duration_hours: topicForm.duration_hours ? parseInt(topicForm.duration_hours) : undefined,
+        order_index: subjectTopics.length,
+      });
+
+      setIsAddingTopic(false);
+      setTopicForm({ title: '', description: '', week_number: '', duration_hours: '' });
+    } catch (error) {
+      console.error('Error adding topic:', error);
+    }
   };
+
+  const handleEditTopic = async () => {
+    if (!editingTopic) return;
+
+    try {
+      await updateTopic(editingTopic.id, {
+        title: topicForm.title.trim(),
+        description: topicForm.description.trim() || undefined,
+        week_number: topicForm.week_number ? parseInt(topicForm.week_number) : undefined,
+        duration_hours: topicForm.duration_hours ? parseInt(topicForm.duration_hours) : undefined,
+      });
+
+      setEditingTopic(null);
+      setTopicForm({ title: '', description: '', week_number: '', duration_hours: '' });
+    } catch (error) {
+      console.error('Error updating topic:', error);
+    }
+  };
+
+  const handleDeleteTopic = async (topicId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce sujet ?')) return;
+
+    try {
+      await deleteTopic(topicId);
+    } catch (error) {
+      console.error('Error deleting topic:', error);
+    }
+  };
+
+  const handleToggleCompletion = async (topicId: string) => {
+    const effectiveClassId = selectedClassId || userClassId;
+    if (!effectiveClassId) return;
+
+    const currentProgress = getProgressForTopic(topicId, effectiveClassId);
+    const newStatus = currentProgress?.status === 'completed' ? 'not_started' : 'completed';
+
+    try {
+      await updateProgress(topicId, effectiveClassId, {
+        status: newStatus,
+        completion_percentage: newStatus === 'completed' ? 100 : 0,
+        completion_date: newStatus === 'completed' ? new Date().toISOString().split('T')[0] : undefined,
+      });
+    } catch (error) {
+      console.error('Error updating progress:', error);
+    }
+  };
+
+  const openEditDialog = (topic: any) => {
+    setEditingTopic(topic);
+    setTopicForm({
+      title: topic.title,
+      description: topic.description || '',
+      week_number: topic.week_number?.toString() || '',
+      duration_hours: topic.duration_hours?.toString() || '',
+    });
+  };
+
+  if (loading || loadingClasses) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!userClassId && availableClasses.length > 0 && !selectedClassId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+            <CartoonEmoji type="book" className="w-10 h-10" />
+          </div>
+          <div className="flex-1">
+            <h2>Programme de l'année</h2>
+            <p className="text-muted-foreground">Sélectionnez une classe pour commencer</p>
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="text-center mb-6">
+              <p className="text-lg font-medium mb-2">Choisissez une classe</p>
+              <p className="text-sm text-muted-foreground">
+                Sélectionnez une classe pour voir le programme
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Classe</Label>
+              <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Sélectionner une classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClasses.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name} - {cls.level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const effectiveClassId = selectedClassId || userClassId;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-            <CartoonEmoji type="book" className="w-7 h-7" />
-          </div>
-          <div>
-            <h2>Programme de l'année</h2>
-            <p className="text-muted-foreground">
-              Suivez la progression de vos cours par matière
-            </p>
-          </div>
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+          <CartoonEmoji type="book" className="w-10 h-10" />
         </div>
+        <div className="flex-1">
+          <h2>Programme de l'année</h2>
+          <p className="text-muted-foreground">Suivi des objectifs pédagogiques</p>
+        </div>
+        {user?.role === 'teacher' && (
+          <Button
+            onClick={() => setIsAddingTopic(true)}
+            className="rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Ajouter un sujet
+          </Button>
+        )}
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {subjects.map(subject => {
-          const progress = calculateProgress(subject.items);
-          const completed = subject.items.filter(item => item.completed).length;
-          const total = subject.items.length;
-          
-          return (
-            <div
-              key={subject.id}
-              className="bg-white rounded-2xl p-4 border-2 border-border/50 shadow-sm hover:shadow-md transition-all"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 bg-gradient-to-br ${subject.color} rounded-xl flex items-center justify-center`}>
-                  <CartoonEmoji type={subject.icon} className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <h4>{subject.name}</h4>
-                  <p className="text-xs text-muted-foreground">
-                    {completed}/{total} chapitres
-                  </p>
-                </div>
-              </div>
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-center mt-2">{progress}%</p>
-            </div>
-          );
-        })}
-      </div>
+      {!userClassId && availableClasses.length > 0 && (
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 shadow-md">
+          <Label className="mb-2 block">Classe sélectionnée</Label>
+          <Select value={selectedClassId || ''} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="rounded-xl border-2">
+              <SelectValue placeholder="Sélectionner une classe" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableClasses.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name} - {cls.level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-      {/* Detailed Progress by Subject */}
-      <Tabs defaultValue={subjects[0].id} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 bg-muted/50 rounded-2xl p-1">
-          {subjects.map(subject => (
-            <TabsTrigger 
-              key={subject.id} 
-              value={subject.id}
-              className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm"
-            >
-              <CartoonEmoji type={subject.icon} className="w-5 h-5 mr-2" />
-              {subject.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {subjects.length === 0 ? (
+        <Card className="p-8 text-center">
+          <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Aucune matière dans le programme</p>
+        </Card>
+      ) : (
+        <Tabs defaultValue={subjects[0]?.id} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {subjects.map((subject) => {
+              const IconComponent = subjectIcons[subject.icon || 'book'] || BookOpen;
+              const progress = effectiveClassId ? calculateSubjectProgress(subject.id, effectiveClassId) : 0;
 
-        {subjects.map(subject => (
-          <TabsContent key={subject.id} value={subject.id} className="mt-6">
-            <div className="bg-white rounded-2xl border-2 border-border/50 overflow-hidden">
-              {/* Subject Header */}
-              <div className={`bg-gradient-to-br ${subject.color} p-6 text-white`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                      <CartoonEmoji type={subject.icon} className="w-8 h-8" />
-                    </div>
+              return (
+                <TabsTrigger
+                  key={subject.id}
+                  value={subject.id}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl"
+                >
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${subjectColors[subject.code] || 'from-gray-400 to-gray-500'} flex items-center justify-center text-white`}>
+                    <IconComponent className="w-6 h-6" />
+                  </div>
+                  <span className="text-sm font-medium">{subject.name}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {progress}%
+                  </Badge>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+
+          {subjects.map((subject) => {
+            const subjectTopics = getTopicsForSubject(subject.id);
+            const progress = effectiveClassId ? calculateSubjectProgress(subject.id, effectiveClassId) : 0;
+
+            return (
+              <TabsContent key={subject.id} value={subject.id} className="space-y-4">
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-white">{subject.name}</h3>
-                      <p className="text-white/90 text-sm">
-                        Année scolaire 2024-2025
-                      </p>
+                      <h3 className="text-xl font-semibold">{subject.name}</h3>
+                      {subject.description && (
+                        <p className="text-muted-foreground mt-1">{subject.description}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">{progress}%</p>
+                      <p className="text-sm text-muted-foreground">Progression</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-3xl font-bold">
-                      {calculateProgress(subject.items)}%
-                    </div>
-                    <p className="text-white/90 text-sm">Complété</p>
+                  <Progress value={progress} className="h-3" />
+                </Card>
+
+                {subjectTopics.length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <Circle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">Aucun sujet pour cette matière</p>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {subjectTopics.map((topic) => {
+                      const topicProgress = effectiveClassId ? getProgressForTopic(topic.id, effectiveClassId) : undefined;
+                      const isCompleted = topicProgress?.status === 'completed';
+
+                      return (
+                        <Card
+                          key={topic.id}
+                          className={`p-4 transition-all ${
+                            isCompleted ? 'bg-success/5 border-success' : 'hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <button
+                              onClick={() => handleToggleCompletion(topic.id)}
+                              className="mt-1 flex-shrink-0"
+                              disabled={user?.role !== 'teacher'}
+                            >
+                              {isCompleted ? (
+                                <CheckCircle2 className="w-6 h-6 text-success" />
+                              ) : (
+                                <Circle className="w-6 h-6 text-muted-foreground hover:text-primary transition-colors" />
+                              )}
+                            </button>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <h4 className={`font-medium ${isCompleted ? 'text-success' : ''}`}>
+                                    {topic.title}
+                                  </h4>
+                                  {topic.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {topic.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-2">
+                                    {topic.week_number && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        Semaine {topic.week_number}
+                                      </Badge>
+                                    )}
+                                    {topic.duration_hours && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {topic.duration_hours}h
+                                      </Badge>
+                                    )}
+                                    {isCompleted && topicProgress?.completion_date && (
+                                      <Badge className="bg-success text-xs">
+                                        Complété le {new Date(topicProgress.completion_date).toLocaleDateString('fr-FR')}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {user?.role === 'teacher' && (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => openEditDialog(topic)}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleDeleteTopic(topic.id)}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      )}
+
+      <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Ajouter un sujet</DialogTitle>
+            <DialogDescription>
+              Ajouter un nouveau sujet au programme
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Matière</Label>
+              <Select value={selectedSubjectId || ''} onValueChange={setSelectedSubjectId}>
+                <SelectTrigger className="rounded-xl mt-1">
+                  <SelectValue placeholder="Sélectionner une matière" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Titre</Label>
+              <Input
+                value={topicForm.title}
+                onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
+                placeholder="Ex: Les fractions"
+                className="rounded-xl mt-1"
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={topicForm.description}
+                onChange={(e) => setTopicForm({ ...topicForm, description: e.target.value })}
+                placeholder="Description du sujet"
+                className="rounded-xl mt-1"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Semaine</Label>
+                <Input
+                  type="number"
+                  value={topicForm.week_number}
+                  onChange={(e) => setTopicForm({ ...topicForm, week_number: e.target.value })}
+                  placeholder="Ex: 5"
+                  className="rounded-xl mt-1"
+                />
               </div>
 
-              {/* Curriculum Items */}
-              <div className="p-6 space-y-3">
-                {subject.items.map(item => (
-                  <div
-                    key={item.id}
-                    className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all ${
-                      item.completed
-                        ? 'bg-success/5 border-success/30'
-                        : 'bg-muted/30 border-border/50 hover:border-primary/50'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={item.completed}
-                      onCheckedChange={() => toggleItemCompletion(subject.id, item.id)}
-                      className="mt-1"
-                    />
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {item.completed ? (
-                          <CheckCircle2 className="w-5 h-5 text-success" />
-                        ) : (
-                          <Circle className="w-5 h-5 text-muted-foreground" />
-                        )}
-                        <h4 className={item.completed ? 'text-success' : ''}>
-                          {item.title}
-                        </h4>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <Badge variant="outline" className="shrink-0">
-                      Semaine {item.weekNumber}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer Actions */}
-              <div className="px-6 pb-6 flex gap-3">
-                <Button variant="outline" className="flex-1">
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Modifier le programme
-                </Button>
-                <Button className="flex-1">
-                  Exporter le rapport
-                </Button>
+              <div>
+                <Label>Durée (heures)</Label>
+                <Input
+                  type="number"
+                  value={topicForm.duration_hours}
+                  onChange={(e) => setTopicForm({ ...topicForm, duration_hours: e.target.value })}
+                  placeholder="Ex: 3"
+                  className="rounded-xl mt-1"
+                />
               </div>
             </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddingTopic(false);
+                setTopicForm({ title: '', description: '', week_number: '', duration_hours: '' });
+              }}
+              className="rounded-xl"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleAddTopic}
+              className="rounded-xl bg-gradient-to-br from-primary to-secondary"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingTopic} onOpenChange={(open) => !open && setEditingTopic(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Modifier le sujet</DialogTitle>
+            <DialogDescription>
+              Modifier les informations du sujet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Titre</Label>
+              <Input
+                value={topicForm.title}
+                onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
+                className="rounded-xl mt-1"
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={topicForm.description}
+                onChange={(e) => setTopicForm({ ...topicForm, description: e.target.value })}
+                className="rounded-xl mt-1"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Semaine</Label>
+                <Input
+                  type="number"
+                  value={topicForm.week_number}
+                  onChange={(e) => setTopicForm({ ...topicForm, week_number: e.target.value })}
+                  className="rounded-xl mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Durée (heures)</Label>
+                <Input
+                  type="number"
+                  value={topicForm.duration_hours}
+                  onChange={(e) => setTopicForm({ ...topicForm, duration_hours: e.target.value })}
+                  className="rounded-xl mt-1"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingTopic(null);
+                setTopicForm({ title: '', description: '', week_number: '', duration_hours: '' });
+              }}
+              className="rounded-xl"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleEditTopic}
+              className="rounded-xl bg-gradient-to-br from-primary to-secondary"
+            >
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
