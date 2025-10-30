@@ -148,21 +148,21 @@ export function EventsList() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="bg-gradient-to-br from-blue-100 to-blue-150 rounded-3xl p-8 shadow-lg border-2 border-white/50"
+        className="bg-gradient-to-br from-blue-100 to-blue-150 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-lg border-2 border-white/50"
       >
-        <div className="flex items-start gap-6 mb-6">
-          <div className="flex-shrink-0">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md">
-              <CartoonEmoji type="calendar" className="w-10 h-10" />
+        <div className="flex items-start gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
+          <div className="flex-shrink-0 hidden sm:block">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full flex items-center justify-center shadow-md">
+              <CartoonEmoji type="calendar" className="w-8 h-8 sm:w-10 sm:h-10" />
             </div>
           </div>
 
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-blue-500" />
-              <h3 className="text-blue-900">Événements à venir</h3>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+              <h3 className="text-blue-900 text-base sm:text-lg lg:text-xl">Événements à venir</h3>
             </div>
-            <p className="text-blue-700 text-sm mt-1">
+            <p className="text-blue-700 text-xs sm:text-sm mt-1">
               Les prochaines dates importantes
             </p>
           </div>
@@ -174,19 +174,19 @@ export function EventsList() {
                 fetchAvailableClasses();
               }}
               size="sm"
-              className="rounded-xl bg-blue-500 hover:bg-blue-600"
+              className="rounded-xl bg-blue-500 hover:bg-blue-600 flex-shrink-0"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Ajouter
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Ajouter</span>
             </Button>
           )}
 
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 hidden lg:block">
             <motion.div
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
             >
-              <span className="text-3xl">📅</span>
+              <span className="text-2xl sm:text-3xl">📅</span>
             </motion.div>
           </div>
         </div>
@@ -209,30 +209,30 @@ export function EventsList() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 border-2 border-white/50 hover:shadow-md transition-all"
+                  className="bg-white/90 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-4 border-2 border-white/50 hover:shadow-md transition-all"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className={`${typeInfo.color} w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0`}>
-                      <span className="text-2xl">{typeInfo.icon}</span>
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className={`${typeInfo.color} w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0`}>
+                      <span className="text-xl sm:text-2xl">{typeInfo.icon}</span>
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h4 className="font-semibold text-blue-900 line-clamp-1">
+                        <h4 className="font-semibold text-blue-900 line-clamp-1 text-sm sm:text-base">
                           {event.title}
                         </h4>
-                        <Badge variant="secondary" className="text-xs flex-shrink-0">
+                        <Badge variant="secondary" className="text-xs flex-shrink-0 hidden sm:flex">
                           {typeInfo.label}
                         </Badge>
                       </div>
 
                       {event.description && (
-                        <p className="text-sm text-blue-700 mb-2 line-clamp-2">
+                        <p className="text-xs sm:text-sm text-blue-700 mb-2 line-clamp-2">
                           {event.description}
                         </p>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-blue-700">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-blue-700">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           <span>{formatEventDate(event.event_date)}</span>
@@ -319,14 +319,14 @@ export function EventsList() {
       </motion.div>
 
       <Dialog open={isCreatingEvent} onOpenChange={setIsCreatingEvent}>
-        <DialogContent className="rounded-2xl max-w-2xl">
+        <DialogContent className="rounded-2xl max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Nouvel événement</DialogTitle>
             <DialogDescription>
               Créer un nouvel événement pour la classe ou l'école
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
             {availableClasses.length > 0 && (
               <div>
                 <Label>Classe (optionnel)</Label>

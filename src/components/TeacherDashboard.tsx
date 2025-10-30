@@ -201,9 +201,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       <div className="relative z-10 flex min-h-screen flex-col">
 
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-sm border-b border-border/50 px-8 py-5 shadow-sm">
+        <header className="bg-white/80 backdrop-blur-sm border-b border-border/50 px-4 sm:px-8 py-4 sm:py-5 shadow-sm">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
               {currentView !== 'home' && (
                 <Button
                   variant="ghost"
@@ -215,27 +215,27 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 </Button>
               )}
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                 <CartoonEmoji
                   type={currentView === 'home' ? 'door' : 'home'}
-                  className="w-10 h-10"
+                  className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0"
                 />
-                <div>
-                  <h1 className="leading-tight">{getViewTitle()}</h1>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h1 className="leading-tight text-lg sm:text-2xl truncate">{getViewTitle()}</h1>
+                  <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
                     {currentView === 'home' ? 'Bienvenue dans votre espace enseignant' : 'Retour à l\'accueil'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <div className="text-right hidden md:block">
                 <p className="text-sm">Enseignant(e)</p>
                 <p className="text-sm text-muted-foreground">{user?.name || 'Enseignant'}</p>
               </div>
-              <Avatar className="w-12 h-12 border-2 border-primary/30">
-                <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white">
+              <Avatar className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-primary/30">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white text-sm">
                   {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'E'}
                 </AvatarFallback>
               </Avatar>
@@ -243,28 +243,28 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 variant="ghost"
                 size="icon"
                 onClick={onLogout}
-                className="rounded-full text-destructive hover:bg-destructive/10"
+                className="rounded-full text-destructive hover:bg-destructive/10 w-9 h-9 sm:w-10 sm:h-10"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
             </div>
           </div>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               {currentView === 'home' ? (
                 <div className="space-y-8">
                   {/* Message de bienvenue personnalisé */}
-                  <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-rose-100 rounded-3xl p-6 border-2 border-white/50 shadow-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md">
-                        <CartoonEmoji type="wave" className="w-10 h-10" />
+                  <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-rose-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border-2 border-white/50 shadow-lg">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full flex items-center justify-center shadow-md flex-shrink-0">
+                        <CartoonEmoji type="wave" className="w-8 h-8 sm:w-10 sm:h-10" />
                       </div>
-                      <div>
-                        <h2 className="font-bold">Bonjour {user?.name || 'Enseignant'} !</h2>
-                        <p className="text-muted-foreground">
+                      <div className="min-w-0">
+                        <h2 className="font-bold text-lg sm:text-xl truncate">Bonjour {user?.name || 'Enseignant'} !</h2>
+                        <p className="text-muted-foreground text-sm sm:text-base">
                           Bienvenue dans votre espace enseignant
                         </p>
                       </div>
@@ -283,17 +283,17 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                               key={sectionIdx}
                               className="flex-[0_0_100%] min-w-0"
                             >
-                              <div className={`${section.bgColor} rounded-3xl p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full`}>
+                              <div className={`${section.bgColor} rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-lg border-2 border-white/50 hover:shadow-xl transition-all h-full`}>
                                 {/* Section Header */}
-                                <div className="flex items-center gap-3 mb-6">
+                                <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
                                   <div className={`transition-transform duration-300 ${isSectionHovered ? 'scale-125' : 'scale-100'}`}>
-                                    <CartoonEmoji type={section.emoji} className="w-10 h-10" />
+                                    <CartoonEmoji type={section.emoji} className="w-8 h-8 sm:w-10 sm:h-10" />
                                   </div>
-                                  <h3 className="text-xl font-bold">{section.title}</h3>
+                                  <h3 className="text-lg sm:text-xl font-bold">{section.title}</h3>
                                 </div>
 
                                 {/* Apps Grid */}
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                                   {section.apps.map((app, appIdx) => {
                                     const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
 
@@ -303,11 +303,11 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                                         onClick={() => setCurrentView(app.view)}
                                         onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
                                         onMouseLeave={() => setHoveredApp(null)}
-                                        className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group`}
+                                        className={`relative ${section.cardColor} rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[120px] sm:min-h-[140px] group`}
                                       >
                                         {/* Badge notification */}
                                         {app.badge && (
-                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
+                                          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
                                             {app.badge}
                                           </div>
                                         )}
@@ -316,13 +316,13 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                                         <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
                                           <AppIcon
                                             type={app.iconType}
-                                            className="w-16 h-16"
+                                            className="w-12 h-12 sm:w-16 sm:h-16"
                                             animated={true}
                                           />
                                         </div>
 
                                         {/* Title */}
-                                        <span className="text-white text-center text-sm font-medium leading-tight">
+                                        <span className="text-white text-center text-xs sm:text-sm font-medium leading-tight">
                                           {app.title}
                                         </span>
                                       </button>
@@ -340,17 +340,17 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                     {canScrollPrev && (
                       <button
                         onClick={scrollPrev}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
+                        className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10"
                       >
-                        <ChevronLeft className="w-6 h-6" />
+                        <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                       </button>
                     )}
                     {canScrollNext && (
                       <button
                         onClick={scrollNext}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
+                        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center hover:bg-white transition-all hover:scale-110 z-10 rotate-180"
                       >
-                        <ChevronLeft className="w-6 h-6" />
+                        <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                       </button>
                     )}
                   </div>
@@ -359,7 +359,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   <EventsList />
                 </div>
               ) : (
-                <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border-2 border-white/50">
+                <div className="bg-white/70 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-lg border-2 border-white/50">
                   {renderView()}
                 </div>
               )}
