@@ -245,7 +245,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                                 </div>
 
                                 {/* Apps Grid */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                                <div className="grid grid-cols-3 gap-4">
                                   {section.apps.map((app, appIdx) => {
                                     const isHovered = hoveredApp === `${sectionIdx}-${appIdx}`;
 
@@ -255,11 +255,11 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                                         onClick={() => setCurrentView(app.view)}
                                         onMouseEnter={() => setHoveredApp(`${sectionIdx}-${appIdx}`)}
                                         onMouseLeave={() => setHoveredApp(null)}
-                                        className={`relative ${section.cardColor} rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[120px] sm:min-h-[140px] group`}
+                                        className={`relative ${section.cardColor} rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all hover:scale-105 hover:shadow-xl border-2 border-white/50 min-h-[140px] group`}
                                       >
                                         {/* Badge notification */}
                                         {app.badge && (
-                                          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
+                                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10">
                                             {app.badge}
                                           </div>
                                         )}
@@ -268,13 +268,13 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                                         <div className={`transition-transform duration-300 ${isHovered ? 'scale-125' : 'scale-100'}`}>
                                           <AppIcon
                                             type={app.iconType}
-                                            className="w-12 h-12 sm:w-16 sm:h-16"
+                                            className="w-16 h-16"
                                             animated={true}
                                           />
                                         </div>
 
                                         {/* Title */}
-                                        <span className="text-white text-center text-xs sm:text-sm font-medium leading-tight">
+                                        <span className="text-white text-center text-sm font-medium leading-tight">
                                           {app.title}
                                         </span>
                                       </button>
