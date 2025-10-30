@@ -8,6 +8,7 @@ import { GradesReportsView } from './GradesReportsView';
 import { SchoolCommunicationsView } from './SchoolCommunicationsView';
 import { CurriculumMonitoringView } from './CurriculumMonitoringView';
 import { MessagingView } from './MessagingView';
+import { MessagingDebugView } from './MessagingDebugView';
 import {
   LayoutDashboard,
   Users,
@@ -33,7 +34,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type ViewType = 'home' | 'users' | 'classes' | 'apps' | 'settings' | 'grades' | 'communications' | 'curriculum' | 'messaging';
+type ViewType = 'home' | 'users' | 'classes' | 'apps' | 'settings' | 'grades' | 'communications' | 'curriculum' | 'messaging' | 'messaging-debug';
 
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const { user } = useAuth();
@@ -44,6 +45,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { id: 'users' as ViewType, label: 'Utilisateurs', icon: Users, badge: '245' },
     { id: 'classes' as ViewType, label: 'Classes', icon: School },
     { id: 'messaging' as ViewType, label: 'Messagerie', icon: MessageSquare },
+    { id: 'messaging-debug' as ViewType, label: 'Debug Messagerie', icon: MessageSquare },
     { id: 'grades' as ViewType, label: 'Notes & bulletins', icon: GraduationCap },
     { id: 'communications' as ViewType, label: 'Communications', icon: Megaphone, badge: '2' },
     { id: 'curriculum' as ViewType, label: 'Suivi programme', icon: BookOpen },
@@ -62,6 +64,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       case 'communications': return 'Communications école';
       case 'curriculum': return 'Suivi du programme';
       case 'messaging': return 'Messagerie';
+      case 'messaging-debug': return 'Debug Messagerie';
       default: return 'Administration';
     }
   };
@@ -86,6 +89,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <CurriculumMonitoringView />;
       case 'messaging':
         return <MessagingView />;
+      case 'messaging-debug':
+        return <MessagingDebugView />;
       default:
         return <AdminDashboardHome />;
     }
