@@ -21,6 +21,7 @@ import {
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
+import { useUnreadMessages } from '../hooks/useMessages';
 
 interface StudentDashboardProps {
   onLogout: () => void;
@@ -47,6 +48,7 @@ interface AppSection {
 
 export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const { user } = useAuth();
+  const { unreadCount } = useUnreadMessages(user?.id);
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: 'start' });
@@ -76,7 +78,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       bgColor: "bg-gradient-to-br from-purple-100 to-purple-150",
       cardColor: "bg-gradient-to-br from-purple-400 to-purple-500",
       apps: [
-        { iconType: 'messaging', title: "Messagerie élève", badge: "2", view: 'messaging' },
+        { iconType: 'messaging', title: "Messagerie élève", badge: unreadCount > 0 ? String(unreadCount) : undefined, view: 'messaging' },
       ],
     },
     {

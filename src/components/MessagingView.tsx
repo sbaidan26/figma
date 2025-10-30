@@ -287,7 +287,7 @@ export function MessagingView() {
       msg => msg.recipient_id === dbUserId && !msg.read
     );
 
-    if (unreadMessages.length > 0) {
+    if (unreadMessages.length > 0 && dbUserId) {
       try {
         await supabase
           .from('messages')
@@ -568,7 +568,7 @@ export function MessagingView() {
 
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
         {selectedConversation.messages.map((msg) => {
-          const isCurrentUser = msg.sender_id === user?.id;
+          const isCurrentUser = msg.sender_id === dbUserId;
 
           return (
             <div
@@ -605,13 +605,14 @@ export function MessagingView() {
                 handleSendMessage();
               }
             }}
-            placeholder="Écrivez votre message..."
+            placeholder="Écrivez votre message... (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)"
             className="flex-1 min-h-[60px] max-h-[120px] resize-none"
           />
           <Button
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending}
             className="bg-primary h-[60px] px-6"
+            title="Envoyer le message"
           >
             {sending ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -620,6 +621,9 @@ export function MessagingView() {
             )}
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          💡 Astuce : Appuyez sur Entrée pour envoyer rapidement
+        </p>
       </Card>
     </div>
   );

@@ -23,6 +23,7 @@ import {
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { useAuth } from '../contexts/AuthContext';
+import { useUnreadMessages } from '../hooks/useMessages';
 
 interface ParentDashboardProps {
   onLogout: () => void;
@@ -50,6 +51,7 @@ interface AppSection {
 
 export function ParentDashboard({ onLogout }: ParentDashboardProps) {
   const { user } = useAuth();
+  const { unreadCount } = useUnreadMessages(user?.id);
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: 'start' });
@@ -79,9 +81,9 @@ export function ParentDashboard({ onLogout }: ParentDashboardProps) {
       bgColor: "bg-gradient-to-br from-purple-100 to-purple-150",
       cardColor: "bg-gradient-to-br from-purple-400 to-purple-500",
       apps: [
-        { iconType: 'coffee', title: "Le Café des Parents", badge: "3", view: 'cafe' },
-        { iconType: 'liaison', title: "Cahier de liaison", badge: "1", view: 'liaison' },
-        { iconType: 'messaging', title: "Messagerie école-famille", view: 'messaging' },
+        { iconType: 'coffee', title: "Le Café des Parents", view: 'cafe' },
+        { iconType: 'liaison', title: "Cahier de liaison", view: 'liaison' },
+        { iconType: 'messaging', title: "Messagerie école-famille", badge: unreadCount > 0 ? String(unreadCount) : undefined, view: 'messaging' },
       ],
     },
     {

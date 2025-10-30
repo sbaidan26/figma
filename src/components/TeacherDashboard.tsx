@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useUnreadMessages } from '../hooks/useMessages';
 
 interface TeacherDashboardProps {
   onLogout: () => void;
@@ -53,6 +54,7 @@ interface AppSection {
 
 export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const { user } = useAuth();
+  const { unreadCount } = useUnreadMessages(user?.id);
   const [hoveredApp, setHoveredApp] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [selectedCourse, setSelectedCourse] = useState<{ id: number; name: string; time: string } | null>(null);
@@ -84,8 +86,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
       cardColor: "bg-gradient-to-br from-purple-400 to-purple-500",
       apps: [
         { iconType: 'coffee', title: "Espace enseignant", view: 'teacher-space' },
-        { iconType: 'liaison', title: "Cahier de liaison", badge: "3", view: 'liaison' },
-        { iconType: 'messaging', title: "Messagerie école-famille", badge: "5", view: 'messaging' },
+        { iconType: 'liaison', title: "Cahier de liaison", view: 'liaison' },
+        { iconType: 'messaging', title: "Messagerie école-famille", badge: unreadCount > 0 ? String(unreadCount) : undefined, view: 'messaging' },
       ],
     },
     {
