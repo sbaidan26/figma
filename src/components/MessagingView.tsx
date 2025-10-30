@@ -78,21 +78,36 @@ export function MessagingView() {
 
   useEffect(() => {
     const fetchDbUserId = async () => {
-      if (!user) return;
+      if (!user) {
+        console.log('No user found in MessagingView');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Fetching DB user ID for auth user:', user.id);
 
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('id')
+          .select('id, name, role')
           .eq('auth_user_id', user.id)
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching user from DB:', error);
+          throw error;
+        }
+
         if (data) {
+          console.log('Found DB user:', data);
           setDbUserId(data.id);
+        } else {
+          console.log('No DB user found for auth user:', user.id);
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching database user ID:', error);
+        setLoading(false);
       }
     };
 
@@ -150,7 +165,10 @@ export function MessagingView() {
   };
 
   const fetchConversations = async () => {
-    if (!user || !dbUserId) return;
+    if (!user || !dbUserId) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -161,7 +179,12 @@ export function MessagingView() {
         .or(`sender_id.eq.${dbUserId},recipient_id.eq.${dbUserId}`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error fetching messages:', error);
+        throw error;
+      }
+
+      console.log('Fetched messages:', messages);
 
       const conversationsMap = new Map<string, Conversation>();
 
@@ -197,6 +220,7 @@ export function MessagingView() {
         conv.messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       });
 
+      console.log('Conversations:', convArray);
       setConversations(convArray);
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -343,8 +367,26 @@ export function MessagingView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Chargement de la messagerie...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-muted-foreground">Vous devez être connecté pour accéder à la messagerie</p>
+      </div>
+    );
+  }
+
+  if (!dbUserId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-muted-foreground">Erreur: Utilisateur non trouvé dans la base de données</p>
+        <p className="text-xs text-muted-foreground">Auth User ID: {user?.id}</p>
       </div>
     );
   }
