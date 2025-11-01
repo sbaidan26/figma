@@ -92,6 +92,8 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
     const kvSet1 = await kv.set(`user:${data.user.id}`, userData);
     const kvSet2 = await kv.set(`user:email:${email}`, data.user.id);
 
+    console.log('KV store set results:', { kvSet1, kvSet2 });
+
     if (!kvSet1 || !kvSet2) {
       console.log('Warning: Failed to store user data in KV store');
     }
@@ -135,7 +137,10 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
 app.get("/make-server-9846636e/auth/session", requireAuth, async (c) => {
   try {
     const user = c.get('user');
+    console.log('Fetching user data for:', user.id);
     const userData = await kv.get(`user:${user.id}`);
+
+    console.log('User data from KV:', userData);
 
     if (!userData) {
       return c.json({ error: 'User data not found' }, 404);

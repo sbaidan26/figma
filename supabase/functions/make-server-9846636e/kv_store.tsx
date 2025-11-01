@@ -7,7 +7,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export async function get(key: string): Promise<any> {
   try {
     const { data, error } = await supabase
-      .from('kv_store')
+      .from('kv_store_9846636e')
       .select('value')
       .eq('key', key)
       .maybeSingle();
@@ -27,11 +27,10 @@ export async function get(key: string): Promise<any> {
 export async function set(key: string, value: any): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from('kv_store')
+      .from('kv_store_9846636e')
       .upsert({
         key,
-        value,
-        updated_at: new Date().toISOString()
+        value
       });
 
     if (error) {
@@ -49,7 +48,7 @@ export async function set(key: string, value: any): Promise<boolean> {
 export async function del(key: string): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from('kv_store')
+      .from('kv_store_9846636e')
       .delete()
       .eq('key', key);
 

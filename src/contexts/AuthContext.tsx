@@ -34,26 +34,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-9846636e`;
 
-  const fetchUserData = async (accessToken: string) => {
-    try {
-      const response = await fetch(`${serverUrl}/auth/session`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  const fetchUserData = async (accessToken: string, retries = 3): Promise<any> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(`${serverUrl}/auth/session`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-      if (!response.ok) {
-        console.error('Failed to fetch user data:', await response.text());
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to fetch user data (attempt ${i + 1}/${retries}):`, errorText);
+
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+            continue;
+          }
+          return null;
+        }
+
+        const data = await response.json();
+        return data.user;
+      } catch (error) {
+        console.error(`Error fetching user data (attempt ${i + 1}/${retries}):`, error);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+          continue;
+        }
         return null;
       }
-
-      const data = await response.json();
-      return data.user;
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      return null;
     }
+    return null;
   };
 
   const refreshUser = async () => {
@@ -139,6 +152,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (!response.ok) {
         return { error: data.error || 'Failed to sign up' };
       }
+
+      console.log('Signup successful, user data:', data.user);
+
+      // Wait a bit for KV store to be consistent
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Now sign in the user
       return await signIn(email, password);
