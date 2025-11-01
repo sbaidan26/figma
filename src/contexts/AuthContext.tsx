@@ -217,14 +217,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const rebuildKV = async () => {
     try {
-      if (!session) {
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !currentSession) {
+        console.error('No active session for rebuild:', sessionError);
         return { error: 'No active session' };
       }
 
       const response = await fetch(`${serverUrl}/users/rebuild-kv`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json'
         }
       });
