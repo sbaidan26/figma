@@ -53,19 +53,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         } else {
           toast.success('Connexion réussie !');
 
-          // Wait a bit for user data to be available
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait for session to be established
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
-          // Check if dbUserId is missing and rebuild KV if needed
-          if (user && !user.dbUserId) {
-            console.log('dbUserId missing, rebuilding KV store...');
-            const rebuildResult = await rebuildKV();
-            if (rebuildResult.error) {
-              console.error('Failed to rebuild KV:', rebuildResult.error);
-              toast.error('Erreur lors de la reconstruction des données. Veuillez réessayer.');
-            } else {
-              toast.success('Données reconstruites avec succès !');
-            }
+          // Always rebuild KV on login to ensure dbUserId is present
+          console.log('Rebuilding KV store to ensure dbUserId is available...');
+          const rebuildResult = await rebuildKV();
+          if (rebuildResult.error) {
+            console.error('Failed to rebuild KV:', rebuildResult.error);
+            toast.error('Erreur: ' + rebuildResult.error);
+          } else {
+            console.log('KV rebuilt successfully');
+            toast.success('Connexion finalisée !');
+            // Reload to apply the new user data with dbUserId
+            setTimeout(() => window.location.reload(), 500);
           }
         }
       }
