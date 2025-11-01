@@ -225,6 +225,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       console.log('Calling rebuild-kv endpoint...');
+      console.log('Access token:', currentSession.access_token.substring(0, 20) + '...');
+
       const response = await fetch(`${serverUrl}/users/rebuild-kv`, {
         method: 'POST',
         headers: {
@@ -233,7 +235,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       });
 
-      const data = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        console.error('Response was:', responseText);
+        return { error: 'Invalid response from server' };
+      }
+
       console.log('Rebuild KV response:', data);
 
       if (!response.ok) {
