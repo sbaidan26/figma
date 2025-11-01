@@ -224,6 +224,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error: 'No active session' };
       }
 
+      console.log('Calling rebuild-kv endpoint...');
       const response = await fetch(`${serverUrl}/users/rebuild-kv`, {
         method: 'POST',
         headers: {
@@ -233,16 +234,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       const data = await response.json();
+      console.log('Rebuild KV response:', data);
 
       if (!response.ok) {
+        console.error('Rebuild KV failed:', data);
         return { error: data.error || 'Failed to rebuild KV store' };
       }
 
       if (data.user) {
+        console.log('Setting user data from rebuild:', data.user);
         setUser(data.user);
+        console.log('User dbUserId after rebuild:', data.user.dbUserId);
       }
 
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (error) {
       console.error('Rebuild KV error:', error);
       return { error: 'An error occurred while rebuilding KV store' };

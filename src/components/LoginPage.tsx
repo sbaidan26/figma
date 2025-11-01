@@ -63,10 +63,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             console.error('Failed to rebuild KV:', rebuildResult.error);
             toast.error('Erreur: ' + rebuildResult.error);
           } else {
-            console.log('KV rebuilt successfully');
-            toast.success('Connexion finalisée !');
-            // Reload to apply the new user data with dbUserId
-            setTimeout(() => window.location.reload(), 500);
+            console.log('KV rebuilt successfully, user:', rebuildResult.user);
+            if (rebuildResult.user?.dbUserId) {
+              toast.success('Connexion finalisée !');
+            } else {
+              toast.warning('Connexion OK, mais données incomplètes. Rechargement...');
+              setTimeout(() => window.location.reload(), 1000);
+            }
           }
         }
       }
