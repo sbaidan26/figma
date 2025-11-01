@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshUser = async () => {
     try {
       const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      
+
       if (error || !currentSession) {
         setUser(null);
         setSession(null);
@@ -80,9 +80,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       const userData = await fetchUserData(currentSession.access_token);
+      console.log('refreshUser - userData from fetchUserData:', userData);
       if (userData) {
         setUser(userData);
         setSession(currentSession);
+      } else {
+        console.error('refreshUser - No userData returned');
       }
     } catch (error) {
       console.error('Error refreshing user:', error);
@@ -103,9 +106,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         if (currentSession) {
           const userData = await fetchUserData(currentSession.access_token);
+          console.log('initAuth - userData from fetchUserData:', userData);
           if (userData) {
             setUser(userData);
             setSession(currentSession);
+          } else {
+            console.error('initAuth - No userData returned, user will be null');
           }
         }
       } catch (error) {

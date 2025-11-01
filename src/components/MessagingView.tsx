@@ -77,6 +77,21 @@ export function MessagingView() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    console.log('MessagingView - user:', user);
+    console.log('MessagingView - dbUserId:', dbUserId);
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    if (!dbUserId) {
+      console.error('MessagingView - No dbUserId available');
+      setLoading(false);
+      toast.error('Impossible de charger la messagerie. Veuillez vous reconnecter.');
+      return;
+    }
+
     if (user && dbUserId) {
       fetchConversations();
       fetchAvailableRecipients();
