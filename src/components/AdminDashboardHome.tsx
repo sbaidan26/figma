@@ -17,7 +17,11 @@ import { projectId } from '../utils/supabase/info';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 
-export function AdminDashboardHome() {
+interface AdminDashboardHomeProps {
+  onNavigate?: (view: string) => void;
+}
+
+export function AdminDashboardHome({ onNavigate }: AdminDashboardHomeProps) {
   const { session, user } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const dashboardStats = useDashboardStats();
@@ -185,19 +189,35 @@ export function AdminDashboardHome() {
       <Card className="border-admin-border p-6">
         <h3 className="text-admin-text mb-4">Accès rapide</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+          <Button
+            variant="outline"
+            className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary"
+            onClick={() => onNavigate?.('users')}
+          >
             <Users className="w-5 h-5 text-admin-primary" />
             <span className="text-sm">Ajouter un élève</span>
           </Button>
-          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+          <Button
+            variant="outline"
+            className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary"
+            onClick={() => onNavigate?.('classes')}
+          >
             <GraduationCap className="w-5 h-5 text-admin-accent-green" />
             <span className="text-sm">Créer une classe</span>
           </Button>
-          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+          <Button
+            variant="outline"
+            className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary"
+            onClick={() => onNavigate?.('messaging')}
+          >
             <Calendar className="w-5 h-5 text-admin-accent-orange" />
             <span className="text-sm">Envoyer un message</span>
           </Button>
-          <Button variant="outline" className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary">
+          <Button
+            variant="outline"
+            className="h-auto flex-col gap-2 py-4 border-admin-border hover:border-admin-primary"
+            onClick={() => onNavigate?.('grades')}
+          >
             <TrendingUp className="w-5 h-5 text-purple-500" />
             <span className="text-sm">Voir les rapports</span>
           </Button>

@@ -42,12 +42,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   const navigationItems = [
     { id: 'home' as ViewType, label: 'Tableau de bord', icon: LayoutDashboard },
-    { id: 'users' as ViewType, label: 'Utilisateurs', icon: Users, badge: '245' },
+    { id: 'users' as ViewType, label: 'Utilisateurs', icon: Users },
     { id: 'classes' as ViewType, label: 'Classes', icon: School },
     { id: 'messaging' as ViewType, label: 'Messagerie', icon: MessageSquare },
     { id: 'messaging-debug' as ViewType, label: 'Debug Messagerie', icon: MessageSquare },
     { id: 'grades' as ViewType, label: 'Notes & bulletins', icon: GraduationCap },
-    { id: 'communications' as ViewType, label: 'Communications', icon: Megaphone, badge: '2' },
+    { id: 'communications' as ViewType, label: 'Communications', icon: Megaphone },
     { id: 'curriculum' as ViewType, label: 'Suivi programme', icon: BookOpen },
     { id: 'apps' as ViewType, label: 'Applications', icon: Grid3x3 },
     { id: 'settings' as ViewType, label: 'Paramètres', icon: Settings },
@@ -72,7 +72,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <AdminDashboardHome />;
+        return <AdminDashboardHome onNavigate={setCurrentView} />;
       case 'users':
         return <UserManagementView />;
       case 'classes':
