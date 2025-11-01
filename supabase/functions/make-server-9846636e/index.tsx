@@ -138,12 +138,35 @@ app.get("/make-server-9846636e/auth/session", requireAuth, async (c) => {
   try {
     const user = c.get('user');
     console.log('Fetching user data for:', user.id);
-    const userData = await kv.get(`user:${user.id}`);
+    let userData = await kv.get(`user:${user.id}`);
 
     console.log('User data from KV:', userData);
 
     if (!userData) {
-      return c.json({ error: 'User data not found' }, 404);
+      console.log('No KV data, reconstructing from database and auth metadata');
+      const { data: dbUser } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+      if (dbUser) {
+        userData = {
+          id: user.id,
+          email: dbUser.email || user.email,
+          name: dbUser.name || user.user_metadata?.name || 'Unknown',
+          role: dbUser.role || user.user_metadata?.role || 'student',
+          avatar: '',
+          createdAt: dbUser.created_at || new Date().toISOString(),
+          metadata: user.user_metadata || {}
+        };
+
+        await kv.set(`user:${user.id}`, userData);
+        await kv.set(`user:email:${userData.email}`, user.id);
+        console.log('Reconstructed and saved user data to KV');
+      } else {
+        return c.json({ error: 'User data not found in database' }, 404);
+      }
     }
 
     const { data: dbUser } = await supabaseAdmin
