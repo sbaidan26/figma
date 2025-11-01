@@ -25,12 +25,21 @@ export function MessagingDebugView() {
           return;
         }
 
+        // Check if dbUserId is available
+        console.log('2. Checking dbUserId from user object:', user.dbUserId);
+
+        if (!user.dbUserId) {
+          setError('dbUserId non disponible. Veuillez vous reconnecter.');
+          setLoading(false);
+          return;
+        }
+
         // Fetch DB user
-        console.log('2. Fetching DB user for auth_user_id:', user.id);
+        console.log('3. Fetching DB user for id:', user.dbUserId);
         const { data: dbUserData, error: dbUserError } = await supabase
           .from('users')
           .select('*')
-          .eq('auth_user_id', user.id)
+          .eq('id', user.dbUserId)
           .maybeSingle();
 
         if (dbUserError) {
@@ -46,11 +55,11 @@ export function MessagingDebugView() {
           return;
         }
 
-        console.log('3. DB user found:', dbUserData);
+        console.log('4. DB user found:', dbUserData);
         setDbUser(dbUserData);
 
         // Fetch recipients
-        console.log('4. Fetching recipients...');
+        console.log('5. Fetching recipients...');
         const { data: recipientsData, error: recipientsError } = await supabase
           .from('users')
           .select('id, name, role, status')
@@ -61,12 +70,12 @@ export function MessagingDebugView() {
           console.error('Recipients error:', recipientsError);
           setError(`Erreur recipients: ${recipientsError.message}`);
         } else {
-          console.log('5. Recipients found:', recipientsData);
+          console.log('6. Recipients found:', recipientsData);
           setRecipients(recipientsData || []);
         }
 
         // Fetch messages
-        console.log('6. Fetching messages...');
+        console.log('7. Fetching messages...');
         const { data: messagesData, error: messagesError } = await supabase
           .from('messages')
           .select('*')
@@ -77,7 +86,7 @@ export function MessagingDebugView() {
           console.error('Messages error:', messagesError);
           setError(`Erreur messages: ${messagesError.message}`);
         } else {
-          console.log('7. Messages found:', messagesData);
+          console.log('8. Messages found:', messagesData);
           setMessages(messagesData || []);
         }
 

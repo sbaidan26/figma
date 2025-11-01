@@ -63,7 +63,7 @@ interface User {
 
 export function MessagingView() {
   const { user } = useAuth();
-  const [dbUserId, setDbUserId] = useState<string | null>(null);
+  const dbUserId = user?.dbUserId || null;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -75,44 +75,6 @@ export function MessagingView() {
   const [sending, setSending] = useState(false);
   const [availableRecipients, setAvailableRecipients] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    const fetchDbUserId = async () => {
-      if (!user) {
-        console.log('No user found in MessagingView');
-        setLoading(false);
-        return;
-      }
-
-      console.log('Fetching DB user ID for auth user:', user.id);
-
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, name, role')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error fetching user from DB:', error);
-          throw error;
-        }
-
-        if (data) {
-          console.log('Found DB user:', data);
-          setDbUserId(data.id);
-        } else {
-          console.log('No DB user found for auth user:', user.id);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error fetching database user ID:', error);
-        setLoading(false);
-      }
-    };
-
-    fetchDbUserId();
-  }, [user]);
 
   useEffect(() => {
     if (user && dbUserId) {
@@ -387,6 +349,7 @@ export function MessagingView() {
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <p className="text-muted-foreground">Erreur: Utilisateur non trouvé dans la base de données</p>
         <p className="text-xs text-muted-foreground">Auth User ID: {user?.id}</p>
+        <p className="text-xs text-red-600">Veuillez vous reconnecter ou synchroniser les utilisateurs</p>
       </div>
     );
   }
