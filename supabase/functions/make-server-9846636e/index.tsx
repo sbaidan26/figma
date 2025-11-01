@@ -251,4 +251,50 @@ app.post("/make-server-9846636e/users/sync", requireAuth, async (c) => {
   }
 });
 
+app.post("/make-server-9846636e/users/rebuild-kv", requireAuth, async (c) => {
+  try {
+    const user = c.get('user');
+    console.log('Rebuilding KV for user:', user.id);
+
+    const { data: dbUser } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+
+    if (!dbUser) {
+      return c.json({ error: 'User not found in database' }, 404);
+    }
+
+    const userData = {
+      id: user.id,
+      email: dbUser.email || user.email,
+      name: dbUser.name || user.user_metadata?.name || 'Unknown',
+      role: dbUser.role || user.user_metadata?.role || 'student',
+      avatar: '',
+      createdAt: dbUser.created_at || new Date().toISOString(),
+      metadata: user.user_metadata || {},
+      dbUserId: dbUser.id
+    };
+
+    const kvSet1 = await kv.set(`user:${user.id}`, userData);
+    const kvSet2 = await kv.set(`user:email:${userData.email}`, user.id);
+
+    console.log('KV rebuild results:', { kvSet1, kvSet2 });
+
+    if (!kvSet1 || !kvSet2) {
+      return c.json({ error: 'Failed to rebuild KV store' }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: 'KV store rebuilt successfully',
+      user: userData
+    });
+  } catch (error) {
+    console.log('Exception rebuilding KV:', error);
+    return c.json({ error: 'Failed to rebuild KV store' }, 500);
+  }
+});
+
 Deno.serve(app.fetch);

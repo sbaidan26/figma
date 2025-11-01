@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  rebuildKV: () => Promise<{ error?: string; success?: boolean }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -214,6 +215,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  const rebuildKV = async () => {
+    try {
+      if (!session) {
+        return { error: 'No active session' };
+      }
+
+      const response = await fetch(`${serverUrl}/users/rebuild-kv`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || 'Failed to rebuild KV store' };
+      }
+
+      if (data.user) {
+        setUser(data.user);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Rebuild KV error:', error);
+      return { error: 'An error occurred while rebuilding KV store' };
+    }
+  };
+
   const value = {
     user,
     session,
@@ -221,7 +253,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signUp,
     signIn,
     signOut,
-    refreshUser
+    refreshUser,
+    rebuildKV
   };
 
   return (

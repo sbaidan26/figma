@@ -21,7 +21,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [name, setName] = useState('');
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'parent' | 'student' | 'admin'>('student');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, rebuildKV, user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +52,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           toast.error(error);
         } else {
           toast.success('Connexion réussie !');
+
+          // Wait a bit for user data to be available
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Check if dbUserId is missing and rebuild KV if needed
+          if (user && !user.dbUserId) {
+            console.log('dbUserId missing, rebuilding KV store...');
+            const rebuildResult = await rebuildKV();
+            if (rebuildResult.error) {
+              console.error('Failed to rebuild KV:', rebuildResult.error);
+              toast.error('Erreur lors de la reconstruction des données. Veuillez réessayer.');
+            } else {
+              toast.success('Données reconstruites avec succès !');
+            }
+          }
         }
       }
     } catch (error) {
