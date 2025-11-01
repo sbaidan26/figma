@@ -6,15 +6,12 @@ import * as kv from "./kv_store.tsx";
 
 const app = new Hono();
 
-// Create Supabase client for server operations
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-// Enable logger
 app.use('*', logger(console.log));
 
-// Enable CORS for all routes and methods
 app.use(
   "/*",
   cors({
@@ -26,7 +23,6 @@ app.use(
   }),
 );
 
-// Middleware to verify authentication
 const requireAuth = async (c: any, next: any) => {
   const accessToken = c.req.header('Authorization')?.split(' ')[1];
   
@@ -50,16 +46,10 @@ const requireAuth = async (c: any, next: any) => {
   }
 };
 
-// Health check endpoint
 app.get("/make-server-9846636e/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// ============================================
-// AUTH ROUTES
-// ============================================
-
-// Sign up new user
 app.post("/make-server-9846636e/auth/signup", async (c) => {
   try {
     const { email, password, name, role, metadata } = await c.req.json();
@@ -68,13 +58,11 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
       return c.json({ error: 'Missing required fields: email, password, name, role' }, 400);
     }
 
-    // Validate role
     const validRoles = ['teacher', 'parent', 'student', 'admin'];
     if (!validRoles.includes(role)) {
       return c.json({ error: 'Invalid role' }, 400);
     }
 
-    // Create user in Supabase Auth
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -91,7 +79,6 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
       return c.json({ error: `Failed to create user: ${error.message}` }, 400);
     }
 
-    // Store user data in KV store
     const userData = {
       id: data.user.id,
       email,
@@ -102,25 +89,41 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
       metadata: metadata || {}
     };
 
-    await kv.set(`user:${data.user.id}`, userData);
-    await kv.set(`user:email:${email}`, data.user.id);
+    const kvSet1 = await kv.set(`user:${data.user.id}`, userData);
+    const kvSet2 = await kv.set(`user:email:${email}`, data.user.id);
 
-    // Also create user in Supabase users table
+    if (!kvSet1 || !kvSet2) {
+      console.log('Warning: Failed to store user data in KV store');
+    }
+
+    let dbUserId = null;
     try {
-      await supabaseAdmin.from('users').insert({
+      const { data: dbUser, error: dbError } = await supabaseAdmin.from('users').insert({
         auth_user_id: data.user.id,
         name,
         email,
         role,
         status: 'active'
-      });
+      }).select('id').single();
+
+      if (dbError) {
+        console.log('Error creating user in database:', dbError);
+      } else {
+        dbUserId = dbUser?.id;
+        console.log('User created in database with ID:', dbUserId);
+      }
     } catch (dbError) {
       console.log('Error creating user in database (non-fatal):', dbError);
     }
 
+    const enrichedUserData = {
+      ...userData,
+      dbUserId
+    };
+
     return c.json({
       success: true,
-      user: userData,
+      user: enrichedUserData,
       message: 'User created successfully'
     });
   } catch (error) {
@@ -129,7 +132,6 @@ app.post("/make-server-9846636e/auth/signup", async (c) => {
   }
 });
 
-// Get current session
 app.get("/make-server-9846636e/auth/session", requireAuth, async (c) => {
   try {
     const user = c.get('user');
@@ -139,7 +141,6 @@ app.get("/make-server-9846636e/auth/session", requireAuth, async (c) => {
       return c.json({ error: 'User data not found' }, 404);
     }
 
-    // Also get the database user ID
     const { data: dbUser } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -186,7 +187,6 @@ app.put("/make-server-9846636e/auth/profile", requireAuth, async (c) => {
   }
 });
 
-// Sync users between auth.users and public.users
 app.post("/make-server-9846636e/users/sync", requireAuth, async (c) => {
   try {
     const { data: { users: authUsers }, error } = await supabaseAdmin.auth.admin.listUsers();
